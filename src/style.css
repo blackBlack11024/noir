@@ -1,0 +1,69 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #08090c;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Microsoft JhengHei", Arial, sans-serif;
+  color: #e5dfd3;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle at center, #141720 0%, #050608 100%);
+}
+
+#canvas-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 540px;
+  max-height: 960px;
+  aspect-ratio: 9 / 16;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(212, 175, 55, 0.25);
+  overflow: hidden;
+  background-color: #0f1115;
+  border-radius: 4px;
+}
+
+#game-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: auto;
+  cursor: crosshair;
+}
+
+#ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+#ui-overlay * {
+  pointer-events: auto;
+}
+
+/* 復古裝飾風 Art Deco 邊框與光影 */
+.art-deco-border {
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  box-shadow: inset 0 0 15px rgba(212, 175, 55, 0.1);
+}
+
