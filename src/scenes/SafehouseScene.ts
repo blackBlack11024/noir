@@ -287,15 +287,15 @@ export class SafehouseScene {
     ctx.fillStyle = '#0d0f14';
     ctx.fillRect(0, 0, 540, 960);
 
-    // 標題
+    // 標題 (法文優雅黑幫風格)
     ctx.fillStyle = '#d4af37';
-    ctx.font = L.isTouch ? 'bold 18px sans-serif' : 'bold 20px sans-serif';
+    ctx.font = L.isTouch ? 'bold 17px sans-serif' : 'bold 19px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('夜鶯庇護所 安全屋酒吧', 270, L.headerTitleY);
+    ctx.fillText('Le Refuge du Rossignol - Bar Clandestin', 270, L.headerTitleY);
 
     ctx.fillStyle = '#888';
-    ctx.font = L.isTouch ? '10.5px sans-serif' : '11px sans-serif';
-    ctx.fillText('點擊武器選定 | 卡片可設主/副手 | 擊敗頭目解鎖神兵', 270, L.headerSubY);
+    ctx.font = L.isTouch ? '10px sans-serif' : '10.5px sans-serif';
+    ctx.fillText("Sélection d'armes | Débloquez l'Arsenal des Parrains", 270, L.headerSubY);
 
     // 快捷解鎖與存檔重置按鈕
     ctx.fillStyle = 'rgba(231, 76, 60, 0.15)';
@@ -306,7 +306,7 @@ export class SafehouseScene {
     ctx.fillStyle = '#e74c3c';
     ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('重置存檔 (F4)', 73, 23);
+    ctx.fillText('Réinitialiser (F4)', 73, 23);
 
     ctx.fillStyle = GameState.debugAllUnlocked ? '#2ecc71' : 'rgba(212, 175, 55, 0.2)';
     ctx.fillRect(390, 8, 124, 22);
@@ -317,13 +317,13 @@ export class SafehouseScene {
     ctx.fillStyle = GameState.debugAllUnlocked ? '#000' : '#ffd700';
     ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(GameState.debugAllUnlocked ? '全神兵已解鎖' : '測試全解鎖 (F1)', 452, 23);
+    ctx.fillText(GameState.debugAllUnlocked ? 'Arsenal Débloqué' : 'Tout Débloquer (F1)', 452, 23);
 
     // 武器陳列架 (24 格)
     ctx.fillStyle = '#ffd700';
     ctx.font = L.isTouch ? 'bold 11px sans-serif' : 'bold 12px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('黑幫武器庫 (首殺解鎖):', 26, L.libTitleY);
+    ctx.fillText("L'Arsenal du Milieu (Premier Sang):", 26, L.libTitleY);
 
     for (let i = 0; i < 24; i++) {
       const wid = i + 1;
