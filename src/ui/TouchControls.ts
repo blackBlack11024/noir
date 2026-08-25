@@ -33,59 +33,59 @@ export class TouchControls {
       ctx.lineWidth = 2;
       ctx.stroke();
     } else {
-      // 待命時的微弱提示
-      ctx.globalAlpha = 0.2;
-      ctx.strokeStyle = 'rgba(212, 175, 55, 0.6)';
+    // 待命時的微弱提示
+      ctx.globalAlpha = 0.25;
+      ctx.strokeStyle = 'rgba(212, 175, 55, 0.7)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(90, 820, 45, 0, Math.PI * 2);
+      ctx.arc(100, 760, 52, 0, Math.PI * 2);
       ctx.stroke();
 
       ctx.fillStyle = '#d4af37';
-      ctx.font = '10px sans-serif';
+      ctx.font = '11px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('滑動走位', 90, 824);
+      ctx.fillText('滑動走位', 100, 764);
     }
 
     // 2. 右側動作按鈕群
     const renderButton = (x: number, y: number, r: number, text: string, sub: string, isDown: boolean, color: string = '#ffd700') => {
       ctx.save();
-      ctx.globalAlpha = isDown ? 0.8 : 0.45;
+      ctx.globalAlpha = isDown ? 0.9 : 0.6;
 
       // 按鈕底色
-      ctx.fillStyle = isDown ? 'rgba(212, 175, 55, 0.35)' : 'rgba(15, 17, 22, 0.75)';
+      ctx.fillStyle = isDown ? 'rgba(212, 175, 55, 0.45)' : 'rgba(15, 17, 22, 0.85)';
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
 
       // 外邊框
-      ctx.strokeStyle = isDown ? '#fff' : color;
-      ctx.lineWidth = isDown ? 2.5 : 1.5;
+      ctx.strokeStyle = isDown ? '#ffffff' : color;
+      ctx.lineWidth = isDown ? 3 : 2;
       ctx.stroke();
 
       // 主文字
-      ctx.fillStyle = isDown ? '#fff' : '#e5dfd3';
-      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = isDown ? '#ffffff' : '#e5dfd3';
+      ctx.font = 'bold 13px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(text, x, sub ? y - 4 : y);
+      ctx.fillText(text, x, sub ? y - 5 : y);
 
       // 副文字 (冷卻/按鍵)
       if (sub) {
         ctx.fillStyle = color;
-        ctx.font = '9px sans-serif';
-        ctx.fillText(sub, x, y + 8);
+        ctx.font = 'bold 9.5px sans-serif';
+        ctx.fillText(sub, x, y + 9);
       }
 
       ctx.restore();
     };
 
-    renderButton(455, 825, 35, '攻擊', '', InputManager.touchAttack, '#ffd700');
-    renderButton(375, 845, 28, '重攻', '蓄力', InputManager.touchCharge, '#ff9800');
-    renderButton(465, 735, 26, '翻滾', '', InputManager.touchDodge, '#00bfff');
-    renderButton(385, 765, 25, '特技', 'E', InputManager.touchSkill, '#e040fb');
-    renderButton(475, 655, 24, '切槍', 'Q', InputManager.touchSwap, '#76ff03');
-    renderButton(395, 685, 24, '換彈', 'R', InputManager.touchReload, '#ff5252');
+    renderButton(440, 780, 42, '攻擊', '', InputManager.touchAttack, '#ffd700');
+    renderButton(348, 805, 34, '重攻', '蓄力', InputManager.touchCharge, '#ff9800');
+    renderButton(450, 670, 34, '翻滾', '', InputManager.touchDodge, '#00bfff');
+    renderButton(360, 705, 32, '特技', 'E', InputManager.touchSkill, '#e040fb');
+    renderButton(455, 565, 30, '切槍', 'Q', InputManager.touchSwap, '#76ff03');
+    renderButton(370, 605, 30, '換彈', 'R', InputManager.touchReload, '#ff5252');
 
     ctx.restore();
   }

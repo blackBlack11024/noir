@@ -273,12 +273,12 @@ export class InputManagerClass {
 
   private checkButtonHit(x: number, y: number): string | null {
     const buttons = [
-      { id: 'attack', x: 455, y: 825, r: 35 },
-      { id: 'heavy', x: 375, y: 845, r: 28 },
-      { id: 'dodge', x: 465, y: 735, r: 26 },
-      { id: 'skill', x: 385, y: 765, r: 25 },
-      { id: 'swap', x: 475, y: 655, r: 24 },
-      { id: 'reload', x: 395, y: 685, r: 24 }
+      { id: 'attack', x: 440, y: 780, r: 48 },
+      { id: 'heavy', x: 348, y: 805, r: 40 },
+      { id: 'dodge', x: 450, y: 670, r: 40 },
+      { id: 'skill', x: 360, y: 705, r: 38 },
+      { id: 'swap', x: 455, y: 565, r: 36 },
+      { id: 'reload', x: 370, y: 605, r: 36 }
     ];
 
     for (const b of buttons) {

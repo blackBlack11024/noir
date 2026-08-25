@@ -186,10 +186,55 @@ export class Player {
       this.iFrames = Math.max(this.iFrames, 0.1);
     }
 
-    // 瞄準角度 (鼠標直瞄或手把/觸控)
-    const dx = InputManager.mouseX - this.x;
-    const dy = InputManager.mouseY - this.y;
-    this.angle = Math.atan2(dy, dx);
+    // 瞄準角度 (鼠標直瞄或移動端智慧自動鎖敵)
+    if (InputManager.isTouchDevice) {
+      let foundTarget = false;
+      if (InputManager.touchAttack || InputManager.touchCharge || InputManager.touchSkill) {
+        let closestDist = 420;
+        let targetX = 0;
+        let targetY = 0;
+
+        if (boss && !boss.isDead) {
+          const bd = Math.hypot(boss.x - this.x, boss.y - this.y);
+          if (bd < closestDist) {
+            closestDist = bd;
+            targetX = boss.x;
+            targetY = boss.y;
+            foundTarget = true;
+          }
+        }
+
+        for (const e of enemies) {
+          if (e.isDead) continue;
+          const ed = Math.hypot(e.x - this.x, e.y - this.y);
+          if (ed < closestDist) {
+            closestDist = ed;
+            targetX = e.x;
+            targetY = e.y;
+            foundTarget = true;
+          }
+        }
+
+        if (foundTarget) {
+          this.angle = Math.atan2(targetY - this.y, targetX - this.x);
+        }
+      }
+
+      if (!foundTarget) {
+        const move = InputManager.getMovementVector();
+        if (move.x !== 0 || move.y !== 0) {
+          this.angle = Math.atan2(move.y, move.x);
+        } else {
+          const dx = InputManager.mouseX - this.x;
+          const dy = InputManager.mouseY - this.y;
+          this.angle = Math.atan2(dy, dx);
+        }
+      }
+    } else {
+      const dx = InputManager.mouseX - this.x;
+      const dy = InputManager.mouseY - this.y;
+      this.angle = Math.atan2(dy, dx);
+    }
 
     // 精力回復
     if (this.stamina < this.maxStamina) {
