@@ -1310,13 +1310,13 @@ export class Player {
         }
         break;
 
-      case 4: // 截短雙管霰彈槍: 煙幕爆破 (向後大幅翻滾+煙霧)
-        this.x -= Math.cos(this.angle) * 120;
-        this.y -= Math.sin(this.angle) * 120;
-        particles.spawnSmoke(this.x, this.y, 25);
-        this.iFrames = 0.6;
-        for (let i = -3; i <= 3; i++) {
-          projectiles.spawnBullet(this.x, this.y, this.angle + i * 0.15, 520, weapon.damage * 0.8, true, '#8b5a2b', true, 2);
+      case 4: // 截短雙管霰彈槍: 環形煙幕轟殺 (360度全向散彈 + 原地 5 秒戰術濃煙)
+        AudioManager.playShot('shotgun');
+        particles.spawnSmoke(this.x, this.y, 35, 'rgba(110, 115, 125, 0.75)', 115, 5.0, true);
+        this.iFrames = 0.4;
+        for (let i = 0; i < 24; i++) {
+          const a = (i / 24) * Math.PI * 2;
+          projectiles.spawnBullet(this.x, this.y, a, 540, weapon.damage * 1.6, true, '#ff9800', true, 1, undefined, 'shotgun_pellet');
         }
         break;
 
