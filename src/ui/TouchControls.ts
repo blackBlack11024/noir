@@ -6,7 +6,7 @@ export class TouchControls {
 
     ctx.save();
 
-    // 1. 左側動態浮動搖桿
+    // 1. 動態浮動搖桿
     if (InputManager.joystickActive) {
       const ox = InputManager.joystickOriginX;
       const oy = InputManager.joystickOriginY;
@@ -14,79 +14,32 @@ export class TouchControls {
       const cy = InputManager.joystickCurrentY;
 
       // 底盤
-      ctx.globalAlpha = 0.45;
+      ctx.globalAlpha = 0.35;
       ctx.fillStyle = 'rgba(20, 22, 28, 0.7)';
       ctx.beginPath();
-      ctx.arc(ox, oy, 55, 0, Math.PI * 2);
+      ctx.arc(ox, oy, 52, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#ffd700';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
       // 搖桿中心指針 (Knob)
-      ctx.globalAlpha = 0.85;
+      ctx.globalAlpha = 0.8;
       ctx.fillStyle = '#ffd700';
       ctx.beginPath();
-      ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 20, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 2;
       ctx.stroke();
     } else {
-      // 待命時的微弱提示
-      ctx.globalAlpha = 0.3;
-      ctx.strokeStyle = 'rgba(212, 175, 55, 0.75)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(100, 760, 52, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.fillStyle = '#d4af37';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('按住走位蓄力', 100, 755);
-      ctx.font = '9.5px sans-serif';
+      // 待命時的極簡手勢提示
+      ctx.globalAlpha = 0.22;
       ctx.fillStyle = '#ffd700';
-      ctx.fillText('放開釋放重擊', 100, 772);
-    }
-
-    // 2. 右側輔助功能按鈕群
-    const renderButton = (x: number, y: number, r: number, text: string, sub: string, isDown: boolean, color: string = '#ffd700') => {
-      ctx.save();
-      ctx.globalAlpha = isDown ? 0.9 : 0.6;
-
-      // 按鈕底色
-      ctx.fillStyle = isDown ? 'rgba(212, 175, 55, 0.45)' : 'rgba(15, 17, 22, 0.85)';
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 外邊框
-      ctx.strokeStyle = isDown ? '#ffffff' : color;
-      ctx.lineWidth = isDown ? 3 : 2;
-      ctx.stroke();
-
-      // 主文字
-      ctx.fillStyle = isDown ? '#ffffff' : '#e5dfd3';
-      ctx.font = 'bold 13px sans-serif';
+      ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, x, sub ? y - 5 : y);
-
-      // 副文字 (冷卻/按鍵)
-      if (sub) {
-        ctx.fillStyle = color;
-        ctx.font = 'bold 9.5px sans-serif';
-        ctx.fillText(sub, x, y + 9);
-      }
-
-      ctx.restore();
-    };
-
-    renderButton(450, 760, 36, '翻滾', '衝刺', InputManager.touchDodge, '#00bfff');
-    renderButton(360, 780, 32, '特技', 'E', InputManager.touchSkill, '#e040fb');
-    renderButton(455, 650, 30, '切槍', 'Q', InputManager.touchSwap, '#76ff03');
-    renderButton(370, 680, 28, '換彈', 'R', InputManager.touchReload, '#ff5252');
+      ctx.fillText('滑動移動蓄力  |  劃過衝刺  |  雙擊特技', 270, 930);
+    }
 
     ctx.restore();
   }

@@ -311,6 +311,10 @@ export class CombatScene {
         this.pauseModal.open();
         return null;
       }
+      // 手機端點擊左上角武器欄快速切換主副手 (x: 8~220, y: 8~70)
+      if (InputManager.isTouchDevice && mx >= 8 && mx <= 220 && my >= 8 && my <= 70) {
+        this.player.swapWeapon();
+      }
     }
 
     // 暫停模態視窗更新

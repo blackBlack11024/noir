@@ -114,6 +114,9 @@ export class InputManagerClass {
     }, { passive: true });
   }
 
+  private lastTapTime: number = 0;
+  private lastTapPos: { x: number; y: number } = { x: 0, y: 0 };
+
   private setupTouch() {
     if (!this.canvas) return;
 
@@ -136,23 +139,11 @@ export class InputManagerClass {
         const pos = convertTouchPos(t);
         const touchId = t.identifier;
 
-        // 判斷觸控區域：左側為動態浮動搖桿，右側為動作按鈕與直瞄
-        const buttonHit = this.checkButtonHit(pos.x, pos.y);
-        if (buttonHit) {
-          this.handleButtonPress(buttonHit, true);
-          this.activeTouches.set(touchId, {
-            id: touchId,
-            startX: pos.x,
-            startY: pos.y,
-            currentX: pos.x,
-            currentY: pos.y,
-            startTime: now,
-            role: 'button',
-            targetButton: buttonHit
-          });
-          this.haptic(15);
-        } else if (this.joystickTouchId === null) {
-          // 全螢幕非按鈕區域皆可作為單手移動與蓄力搖桿
+        this.mouseX = pos.x;
+        this.mouseY = pos.y;
+
+        if (this.joystickTouchId === null) {
+          // 全螢幕皆可作為動態浮動搖桿（單指按住移動與蓄力）
           this.joystickTouchId = touchId;
           this.joystickActive = true;
           this.joystickOriginX = pos.x;
@@ -170,11 +161,7 @@ export class InputManagerClass {
             role: 'joystick'
           });
         } else {
-          // 多指輔助點擊與瞄準
-          this.mouseX = pos.x;
-          this.mouseY = pos.y;
-          this.isLmbJustPressed = true;
-
+          // 多指觸控記錄
           this.activeTouches.set(touchId, {
             id: touchId,
             startX: pos.x,
@@ -217,7 +204,7 @@ export class InputManagerClass {
               this.touchMoveX = 0;
               this.touchMoveY = 0;
             }
-          } else if (touchData.role === 'aim_attack') {
+          } else {
             this.mouseX = pos.x;
             this.mouseY = pos.y;
           }
@@ -237,26 +224,34 @@ export class InputManagerClass {
           const duration = now - touchData.startTime;
           const dx = touchData.currentX - touchData.startX;
           const dy = touchData.currentY - touchData.startY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+          const dist = Math.hypot(dx, dy);
 
-          if (touchData.role === 'joystick') {
-            // 滑動快速劃出 (Swipe Dodge)
-            if (duration < 220 && dist > 40) {
-              this.isSwiping = true;
-              this.swipeDirection = { x: dx / dist, y: dy / dist };
-              this.justPressedKeys['Space'] = true;
-              this.haptic(25);
+          // 1. 滑動手勢：快速劃過觸發翻滾衝刺 (Swipe / Flick Dodge)
+          if (duration < 260 && dist > 32) {
+            this.isSwiping = true;
+            this.swipeDirection = { x: dx / dist, y: dy / dist };
+            this.justPressedKeys['Space'] = true;
+            this.haptic(25);
+          } else if (duration < 220 && dist < 25) {
+            // 2. 雙擊手勢：快速雙擊釋放終極特技 (Double Tap Skill)
+            if (now - this.lastTapTime < 340 && Math.hypot(touchData.currentX - this.lastTapPos.x, touchData.currentY - this.lastTapPos.y) < 60) {
+              this.justPressedKeys['KeyE'] = true;
+              this.haptic(35);
+              this.lastTapTime = 0;
+            } else {
+              this.lastTapTime = now;
+              this.lastTapPos = { x: touchData.currentX, y: touchData.currentY };
+              this.isLmbJustPressed = true;
             }
+          } else {
+            this.isLmbJustPressed = true;
+          }
 
+          if (touchData.role === 'joystick' || t.identifier === this.joystickTouchId) {
             this.joystickActive = false;
             this.joystickTouchId = null;
             this.touchMoveX = 0;
             this.touchMoveY = 0;
-          } else if (touchData.role === 'button' && touchData.targetButton) {
-            this.handleButtonPress(touchData.targetButton, false);
-          } else if (touchData.role === 'aim_attack') {
-            this.touchAttack = false;
-            this.isLmbDown = false;
           }
 
           this.activeTouches.delete(t.identifier);
@@ -266,40 +261,6 @@ export class InputManagerClass {
 
     this.canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
     this.canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
-  }
-
-  private checkButtonHit(x: number, y: number): string | null {
-    const buttons = [
-      { id: 'dodge', x: 450, y: 760, r: 44 },
-      { id: 'skill', x: 360, y: 780, r: 38 },
-      { id: 'swap', x: 455, y: 650, r: 38 },
-      { id: 'reload', x: 370, y: 680, r: 36 }
-    ];
-
-    for (const b of buttons) {
-      const dx = x - b.x;
-      const dy = y - b.y;
-      if (Math.sqrt(dx * dx + dy * dy) <= b.r) {
-        return b.id;
-      }
-    }
-    return null;
-  }
-
-  private handleButtonPress(buttonId: string, isDown: boolean) {
-    if (buttonId === 'dodge') {
-      this.touchDodge = isDown;
-      if (isDown) this.justPressedKeys['Space'] = true;
-    } else if (buttonId === 'skill') {
-      this.touchSkill = isDown;
-      if (isDown) this.justPressedKeys['KeyE'] = true;
-    } else if (buttonId === 'swap') {
-      this.touchSwap = isDown;
-      if (isDown) this.justPressedKeys['KeyQ'] = true;
-    } else if (buttonId === 'reload') {
-      this.touchReload = isDown;
-      if (isDown) this.justPressedKeys['KeyR'] = true;
-    }
   }
 
   private updateMousePos(clientX: number, clientY: number) {
