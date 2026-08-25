@@ -53,17 +53,15 @@ export class Boss {
     this.tier = tier;
     this.loopCount = loopCount;
 
-    // 依據 Tier 與輪迴數動態演化數值
-    const mults = { 1: 500, 2: 900, 3: 1550, 4: 2600 };
-    const loopHpMult = 1 + (loopCount - 1) * 0.45;
+    // 依據 Tier 與輪迴數動態演化數值 (大幅增強血量與護甲)
+    const mults = { 1: 950, 2: 1800, 3: 3200, 4: 5200 };
+    const loopHpMult = 1 + (loopCount - 1) * 0.55;
     this.hp = Math.round(mults[tier] * loopHpMult);
     this.maxHp = this.hp;
 
-    if (tier >= 2 || loopCount >= 2) {
-      const baseArmor = tier === 4 ? 600 : (tier === 3 ? 400 : 200);
-      this.armor = Math.round(baseArmor * (1 + (loopCount - 1) * 0.3));
-      this.maxArmor = this.armor;
-    }
+    const baseArmor = tier === 4 ? 1000 : (tier === 3 ? 650 : (tier === 2 ? 350 : 150));
+    this.armor = Math.round(baseArmor * (1 + (loopCount - 1) * 0.35));
+    this.maxArmor = this.armor;
   }
 
   public update(dt: number, player: Player, projectiles: ProjectileManager, particles: ParticleSystem) {
@@ -76,7 +74,7 @@ export class Boss {
     // 狂暴階段判定 (HP < 50%)
     if (!this.isEnraged && this.hp < this.maxHp * 0.5) {
       this.isEnraged = true;
-      this.speed = 135;
+      this.speed = 155;
       particles.spawnExplosion(this.x, this.y);
       particles.addDamageText(this.x, this.y, '狂暴覺醒 (ENRAGED)', '#ff3333', true);
       AudioManager.playExplosion();
@@ -102,7 +100,7 @@ export class Boss {
 
       if (this.rushTimer <= 0) {
         this.state = 'chase';
-        this.actionCooldown = this.isEnraged ? 0.8 : 1.4;
+        this.actionCooldown = this.isEnraged ? 0.45 : 0.85;
       }
     } else if (this.state === 'chase') {
       // 主動走位與逼近玩家
@@ -135,8 +133,8 @@ export class Boss {
     const pick = moves[Math.floor(Math.random() * moves.length)];
     this.currentMove = pick;
     this.state = 'windup';
-    const loopWindupMod = Math.max(0.6, Math.pow(0.88, this.loopCount - 1));
-    this.windupTimer = pick.windupTime * (this.isEnraged ? 0.65 : 1.0) * loopWindupMod;
+    const loopWindupMod = Math.max(0.55, Math.pow(0.85, this.loopCount - 1));
+    this.windupTimer = pick.windupTime * 0.75 * (this.isEnraged ? 0.60 : 1.0) * loopWindupMod;
     this.maxWindupTime = this.windupTimer;
 
     // 建立地面危險紅光預警 (Telegraph)

@@ -65,7 +65,7 @@ export class Enemy {
 
     this.x = x;
     this.y = y;
-    this.attackCooldown = 0.4 + Math.random() * 0.5;
+    this.attackCooldown = 0.15 + Math.random() * 0.25;
   }
 
   public update(dt: number, player: Player, projectiles: ProjectileManager, particles: ParticleSystem) {
@@ -235,11 +235,11 @@ export class Enemy {
       } else {
         if (this.attackCooldown <= 0) {
           this.state = 'windup';
-          this.windupTimer = Math.max(0.12, this.info.windupTime);
+          this.windupTimer = Math.max(0.08, this.info.windupTime * 0.7);
         } else if (archetype === 'swarm' || archetype === 'shield') {
           // 冷卻期持續緩步逼近
-          this.x += Math.cos(directAngle) * (curSpeed * 0.35) * dt;
-          this.y += Math.sin(directAngle) * (curSpeed * 0.35) * dt;
+          this.x += Math.cos(directAngle) * (curSpeed * 0.4) * dt;
+          this.y += Math.sin(directAngle) * (curSpeed * 0.4) * dt;
         }
       }
     } else if (this.state === 'windup') {
@@ -247,7 +247,7 @@ export class Enemy {
       if (this.windupTimer <= 0) {
         this.state = 'attack';
         this.executeAttack(player, this.facingAngle, projectiles, particles);
-        this.attackCooldown = archetype === 'kiter' ? 0.9 : (archetype === 'sniper' ? 1.6 : 1.1);
+        this.attackCooldown = archetype === 'kiter' ? 0.55 : (archetype === 'sniper' ? 0.95 : 0.65);
         this.state = 'chase';
       }
     } else {
