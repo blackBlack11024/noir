@@ -338,7 +338,6 @@ export class Boss {
 
         ctx.fillStyle = 'rgba(255, 0, 0, 0.45)';
         ctx.fillRect(0, -tel.width / 2, tel.length * progress, tel.width);
-        ctx.restore();
       }
       ctx.restore();
     }
