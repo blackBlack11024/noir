@@ -1098,15 +1098,15 @@ export class CombatScene {
         }
       }
 
-      // 4. 繪製戰術煙霧遮蔽區 (Smoke Fog of War)
+      // 4. 戰術煙霧在遮罩層開闢清晰視野 (避免黑霧遮擋子彈與主角)
+      lCtx.globalCompositeOperation = 'destination-out';
       for (const s of this.particles.smokeClouds) {
         const sx = s.x + offX;
         const sy = s.y + offY;
-        const smokeAlpha = Math.min(0.92, (s.life / s.maxLife) * 0.95);
         const smGrad = lCtx.createRadialGradient(sx, sy, 5, sx, sy, s.radius);
-        smGrad.addColorStop(0, `rgba(16, 18, 24, ${smokeAlpha})`);
-        smGrad.addColorStop(0.65, `rgba(24, 27, 35, ${smokeAlpha * 0.88})`);
-        smGrad.addColorStop(1, 'rgba(16, 18, 24, 0)');
+        smGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
+        smGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.7)');
+        smGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
         lCtx.fillStyle = smGrad;
         lCtx.beginPath();
         lCtx.arc(sx, sy, s.radius, 0, Math.PI * 2);

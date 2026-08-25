@@ -87,6 +87,30 @@ export class ParticleSystem {
       ctx.restore();
     }
 
+    // 渲染戰術煙霧雲團 (半透明柔和煙霧)
+    for (const s of this.smokeClouds) {
+      ctx.save();
+      const sx = s.x + offsetX;
+      const sy = s.y + offsetY;
+      const progress = s.life / s.maxLife;
+      const alpha = Math.min(0.5, progress * 0.65);
+      
+      const grad = ctx.createRadialGradient(sx, sy, 8, sx, sy, s.radius);
+      grad.addColorStop(0, `rgba(180, 185, 195, ${alpha})`);
+      grad.addColorStop(0.65, `rgba(120, 125, 135, ${alpha * 0.75})`);
+      grad.addColorStop(1, 'rgba(80, 85, 95, 0)');
+      
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(sx, sy, s.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = `rgba(212, 175, 55, ${alpha * 0.35})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // 渲染傷害飄字
     for (const d of this.damageNumbers) {
       const alpha = Math.max(0, d.life / d.maxLife);
