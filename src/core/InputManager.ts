@@ -137,8 +137,22 @@ export class InputManagerClass {
         const touchId = t.identifier;
 
         // 判斷觸控區域：左側為動態浮動搖桿，右側為動作按鈕與直瞄
-        if (pos.x < 270 && this.joystickTouchId === null) {
-          // 激活左側浮動搖桿
+        const buttonHit = this.checkButtonHit(pos.x, pos.y);
+        if (buttonHit) {
+          this.handleButtonPress(buttonHit, true);
+          this.activeTouches.set(touchId, {
+            id: touchId,
+            startX: pos.x,
+            startY: pos.y,
+            currentX: pos.x,
+            currentY: pos.y,
+            startTime: now,
+            role: 'button',
+            targetButton: buttonHit
+          });
+          this.haptic(15);
+        } else if (this.joystickTouchId === null) {
+          // 全螢幕非按鈕區域皆可作為單手移動與蓄力搖桿
           this.joystickTouchId = touchId;
           this.joystickActive = true;
           this.joystickOriginX = pos.x;
@@ -156,37 +170,20 @@ export class InputManagerClass {
             role: 'joystick'
           });
         } else {
-          // 右側或多指操作：檢查是否命中特定按鈕
-          const buttonHit = this.checkButtonHit(pos.x, pos.y);
-          if (buttonHit) {
-            this.handleButtonPress(buttonHit, true);
-            this.activeTouches.set(touchId, {
-              id: touchId,
-              startX: pos.x,
-              startY: pos.y,
-              currentX: pos.x,
-              currentY: pos.y,
-              startTime: now,
-              role: 'button',
-              targetButton: buttonHit
-            });
-            this.haptic(15);
-          } else {
-            // 右側非按鈕區域：視為滑動瞄準與介面點擊 (不觸發持續自動開火，避免瞄準時打空彈匣)
-            this.mouseX = pos.x;
-            this.mouseY = pos.y;
-            this.isLmbJustPressed = true;
+          // 多指輔助點擊與瞄準
+          this.mouseX = pos.x;
+          this.mouseY = pos.y;
+          this.isLmbJustPressed = true;
 
-            this.activeTouches.set(touchId, {
-              id: touchId,
-              startX: pos.x,
-              startY: pos.y,
-              currentX: pos.x,
-              currentY: pos.y,
-              startTime: now,
-              role: 'aim_attack'
-            });
-          }
+          this.activeTouches.set(touchId, {
+            id: touchId,
+            startX: pos.x,
+            startY: pos.y,
+            currentX: pos.x,
+            currentY: pos.y,
+            startTime: now,
+            role: 'aim_attack'
+          });
         }
       }
     }, { passive: false });
@@ -273,12 +270,10 @@ export class InputManagerClass {
 
   private checkButtonHit(x: number, y: number): string | null {
     const buttons = [
-      { id: 'attack', x: 440, y: 780, r: 48 },
-      { id: 'heavy', x: 348, y: 805, r: 40 },
-      { id: 'dodge', x: 450, y: 670, r: 40 },
-      { id: 'skill', x: 360, y: 705, r: 38 },
-      { id: 'swap', x: 455, y: 565, r: 36 },
-      { id: 'reload', x: 370, y: 605, r: 36 }
+      { id: 'dodge', x: 450, y: 760, r: 44 },
+      { id: 'skill', x: 360, y: 780, r: 38 },
+      { id: 'swap', x: 455, y: 650, r: 38 },
+      { id: 'reload', x: 370, y: 680, r: 36 }
     ];
 
     for (const b of buttons) {
@@ -292,15 +287,7 @@ export class InputManagerClass {
   }
 
   private handleButtonPress(buttonId: string, isDown: boolean) {
-    if (buttonId === 'attack') {
-      this.touchAttack = isDown;
-      this.isLmbDown = isDown;
-      if (isDown) this.isLmbJustPressed = true;
-    } else if (buttonId === 'heavy') {
-      this.touchCharge = isDown;
-      this.isRmbDown = isDown;
-      if (isDown) this.isRmbJustPressed = true;
-    } else if (buttonId === 'dodge') {
+    if (buttonId === 'dodge') {
       this.touchDodge = isDown;
       if (isDown) this.justPressedKeys['Space'] = true;
     } else if (buttonId === 'skill') {

@@ -33,21 +33,24 @@ export class TouchControls {
       ctx.lineWidth = 2;
       ctx.stroke();
     } else {
-    // 待命時的微弱提示
-      ctx.globalAlpha = 0.25;
-      ctx.strokeStyle = 'rgba(212, 175, 55, 0.7)';
+      // 待命時的微弱提示
+      ctx.globalAlpha = 0.3;
+      ctx.strokeStyle = 'rgba(212, 175, 55, 0.75)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(100, 760, 52, 0, Math.PI * 2);
       ctx.stroke();
 
       ctx.fillStyle = '#d4af37';
-      ctx.font = '11px sans-serif';
+      ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('滑動走位', 100, 764);
+      ctx.fillText('按住走位蓄力', 100, 755);
+      ctx.font = '9.5px sans-serif';
+      ctx.fillStyle = '#ffd700';
+      ctx.fillText('放開釋放重擊', 100, 772);
     }
 
-    // 2. 右側動作按鈕群
+    // 2. 右側輔助功能按鈕群
     const renderButton = (x: number, y: number, r: number, text: string, sub: string, isDown: boolean, color: string = '#ffd700') => {
       ctx.save();
       ctx.globalAlpha = isDown ? 0.9 : 0.6;
@@ -80,12 +83,10 @@ export class TouchControls {
       ctx.restore();
     };
 
-    renderButton(440, 780, 42, '攻擊', '', InputManager.touchAttack, '#ffd700');
-    renderButton(348, 805, 34, '重攻', '蓄力', InputManager.touchCharge, '#ff9800');
-    renderButton(450, 670, 34, '翻滾', '', InputManager.touchDodge, '#00bfff');
-    renderButton(360, 705, 32, '特技', 'E', InputManager.touchSkill, '#e040fb');
-    renderButton(455, 565, 30, '切槍', 'Q', InputManager.touchSwap, '#76ff03');
-    renderButton(370, 605, 30, '換彈', 'R', InputManager.touchReload, '#ff5252');
+    renderButton(450, 760, 36, '翻滾', '衝刺', InputManager.touchDodge, '#00bfff');
+    renderButton(360, 780, 32, '特技', 'E', InputManager.touchSkill, '#e040fb');
+    renderButton(455, 650, 30, '切槍', 'Q', InputManager.touchSwap, '#76ff03');
+    renderButton(370, 680, 28, '換彈', 'R', InputManager.touchReload, '#ff5252');
 
     ctx.restore();
   }

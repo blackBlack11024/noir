@@ -612,65 +612,100 @@ export class Player {
       this.startReload();
     }
 
-    const isLmb = InputManager.isLmbDown || InputManager.touchAttack;
+    if (InputManager.isTouchDevice) {
+      // 1. 手機端自動輕攻擊 (範圍內有敵人或 Boss 時自動開火/揮擊)
+      if (!this.isReloading && this.lightAttackCooldown <= 0) {
+        let hasTargetInRange = false;
+        const maxRange = weapon.category === 'melee' ? 140 : 420;
 
-    // 武器 9 防暴鋼盾警棍：輕攻擊 (左鍵) 按住為舉盾格擋防禦；短按/點擊為警棍短打揮擊
-    if (weapon.id === 9) {
-      if (isLmb && !this.isReloading) {
-        this.shieldHoldTimer += dt;
-        if (this.shieldHoldTimer > 0.08) {
-          this.isHoldingShield = true;
-          // 切除與格擋正面來襲子彈
-          for (let i = projectiles.list.length - 1; i >= 0; i--) {
-            const p = projectiles.list[i];
-            if (!p.isPlayer && !p.isAreaHazard) {
-              const dx = p.x - this.x;
-              const dy = p.y - this.y;
-              const dist = Math.sqrt(dx * dx + dy * dy);
-              if (dist < 55) {
-                const pAngle = Math.atan2(dy, dx);
-                let diff = Math.abs(pAngle - this.angle);
-                if (diff > Math.PI) diff = Math.PI * 2 - diff;
-                if (diff < 1.35) {
-                  projectiles.list.splice(i, 1);
-                  AudioManager.playParry();
-                  particles.spawnElectricSparks(p.x, p.y, 8);
-                  this.shieldBlockedBulletsCount++;
-                  particles.addDamageText(p.x, p.y, '格擋充能 +' + this.shieldBlockedBulletsCount, '#00e5ff', true);
+        if (boss && !boss.isDead && Math.hypot(boss.x - this.x, boss.y - this.y) <= maxRange) {
+          hasTargetInRange = true;
+        } else {
+          for (const e of enemies) {
+            if (!e.isDead && Math.hypot(e.x - this.x, e.y - this.y) <= maxRange) {
+              hasTargetInRange = true;
+              break;
+            }
+          }
+        }
+
+        if (hasTargetInRange) {
+          this.fireLightAttack(weapon, enemies, boss, projectiles, particles);
+        }
+      }
+
+      // 2. 單指按住移動並蓄力，放開手指瞬間釋放重攻擊
+      const isMovingTouch = InputManager.joystickActive || InputManager.touchCharge;
+      if (isMovingTouch && !this.isReloading) {
+        this.isChargingHeavy = true;
+        this.chargeTimer += dt * this.heavyChargeSpeedMult;
+      } else if (this.isChargingHeavy) {
+        const chargeRatio = Math.min(1.0, this.chargeTimer / weapon.heavyChargeTime);
+        if (chargeRatio >= 0.28) {
+          this.fireHeavyAttack(weapon, chargeRatio, enemies, boss, projectiles, particles);
+        }
+        this.isChargingHeavy = false;
+        this.chargeTimer = 0;
+      }
+    } else {
+      // PC 端鍵鼠操作模式
+      const isLmb = InputManager.isLmbDown;
+
+      // 武器 9 防暴鋼盾警棍：輕攻擊 (左鍵) 按住為舉盾格擋防禦；短按/點擊為警棍短打揮擊
+      if (weapon.id === 9) {
+        if (isLmb && !this.isReloading) {
+          this.shieldHoldTimer += dt;
+          if (this.shieldHoldTimer > 0.08) {
+            this.isHoldingShield = true;
+            for (let i = projectiles.list.length - 1; i >= 0; i--) {
+              const p = projectiles.list[i];
+              if (!p.isPlayer && !p.isAreaHazard) {
+                const dx = p.x - this.x;
+                const dy = p.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 55) {
+                  const pAngle = Math.atan2(dy, dx);
+                  let diff = Math.abs(pAngle - this.angle);
+                  if (diff > Math.PI) diff = Math.PI * 2 - diff;
+                  if (diff < 1.2) {
+                    projectiles.list.splice(i, 1);
+                    AudioManager.playParry();
+                    particles.spawnElectricSparks(p.x, p.y, 8);
+                    this.shieldBlockedBulletsCount++;
+                    particles.addDamageText(p.x, p.y, '格擋充能 +' + this.shieldBlockedBulletsCount, '#00e5ff', true);
+                  }
                 }
               }
             }
           }
+        } else {
+          if (this.shieldHoldTimer > 0 && this.shieldHoldTimer <= 0.16 && this.lightAttackCooldown <= 0 && !this.isReloading) {
+            this.fireLightAttack(weapon, enemies, boss, projectiles, particles);
+          }
+          this.isHoldingShield = false;
+          this.shieldHoldTimer = 0;
         }
       } else {
-        if (this.shieldHoldTimer > 0 && this.shieldHoldTimer <= 0.16 && this.lightAttackCooldown <= 0 && !this.isReloading) {
-          // 短點出招：警棍電擊短打揮擊
-          this.fireLightAttack(weapon, enemies, boss, projectiles, particles);
-        }
         this.isHoldingShield = false;
         this.shieldHoldTimer = 0;
+        if (isLmb && this.lightAttackCooldown <= 0 && !this.isReloading) {
+          this.fireLightAttack(weapon, enemies, boss, projectiles, particles);
+        }
       }
-    } else {
-      this.isHoldingShield = false;
-      this.shieldHoldTimer = 0;
-      // 常規武器輕攻擊
-      if (isLmb && this.lightAttackCooldown <= 0 && !this.isReloading) {
-        this.fireLightAttack(weapon, enemies, boss, projectiles, particles);
-      }
-    }
 
-    // 蓄力重攻擊
-    const isCharging = InputManager.isRmbDown || InputManager.touchCharge;
-    if (isCharging && !this.isReloading) {
-      this.isChargingHeavy = true;
-      this.chargeTimer += dt * this.heavyChargeSpeedMult;
-    } else if (this.isChargingHeavy) {
-      const chargeRatio = Math.min(1.0, this.chargeTimer / weapon.heavyChargeTime);
-      if (chargeRatio >= 0.25) {
-        this.fireHeavyAttack(weapon, chargeRatio, enemies, boss, projectiles, particles);
+      // 蓄力重攻擊 (右鍵)
+      const isCharging = InputManager.isRmbDown;
+      if (isCharging && !this.isReloading) {
+        this.isChargingHeavy = true;
+        this.chargeTimer += dt * this.heavyChargeSpeedMult;
+      } else if (this.isChargingHeavy) {
+        const chargeRatio = Math.min(1.0, this.chargeTimer / weapon.heavyChargeTime);
+        if (chargeRatio >= 0.25) {
+          this.fireHeavyAttack(weapon, chargeRatio, enemies, boss, projectiles, particles);
+        }
+        this.isChargingHeavy = false;
+        this.chargeTimer = 0;
       }
-      this.isChargingHeavy = false;
-      this.chargeTimer = 0;
     }
   }
 
