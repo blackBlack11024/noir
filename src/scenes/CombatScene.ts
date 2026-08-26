@@ -1087,41 +1087,45 @@ export class CombatScene {
     this.player.render(ctx, offX, offY);
     this.particles.render(ctx, offX, offY);
 
-    // 黑色電影動態視野迷霧與戰術煙霧遮蔽渲染 (Noir Dynamic Vision & Smoke Occlusion)
+    // 黑色電影動態視野迷霧與戰術光衰漸層渲染 (Noir Dynamic Vision & Distance Darkness Falloff)
     if (this.lightingCtx) {
       const lCtx = this.lightingCtx;
       lCtx.clearRect(0, 0, 540, 960);
 
       const isBossRoom = (GameState.currentRun && GameState.currentRun.roomIndex === 4);
 
-      // 1. 全局黑色電影深邃夜色暗影 (BOSS 戰採用聚光燈開闊照明 0.35)
-      lCtx.fillStyle = isBossRoom ? 'rgba(6, 8, 12, 0.35)' : 'rgba(6, 8, 12, 0.84)';
+      // 1. 全局深邃夜色暗影底色 (BOSS 戰 0.35 開闊照明，普通關卡 0.96 濃黑夜幕)
+      lCtx.fillStyle = isBossRoom ? 'rgba(4, 5, 8, 0.35)' : 'rgba(3, 4, 6, 0.96)';
       lCtx.fillRect(0, 0, 540, 960);
 
-      // 2. 刻蝕出玩家動態武器視野光錐 (Destination-out)
+      // 2. 刻蝕出玩家動態武器視野光錐與多重光衰減 (Destination-out)
       lCtx.globalCompositeOperation = 'destination-out';
 
       const v = this.player.getVisionStats();
       const px = this.player.x + offX;
       const py = this.player.y + offY;
 
-      // 2.1 周身直覺感知光暈 (Ambient vision)
-      const ambGrad = lCtx.createRadialGradient(px, py, 15, px, py, v.ambientRadius);
-      ambGrad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');
-      ambGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.85)');
-      ambGrad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
+      // 2.1 周身直覺感知多段平滑光衰 (越遠越暗，中心 100% 晶瑩剔透，邊緣平滑沒入漆黑)
+      const ambGrad = lCtx.createRadialGradient(px, py, 5, px, py, v.ambientRadius);
+      ambGrad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');      // 核心 0~5px: 100% 剔透無霧
+      ambGrad.addColorStop(0.25, 'rgba(0, 0, 0, 0.95)');  // 近身 25%: 明亮清晰
+      ambGrad.addColorStop(0.50, 'rgba(0, 0, 0, 0.65)');  // 中程 50%: 明顯光衰漸層
+      ambGrad.addColorStop(0.78, 'rgba(0, 0, 0, 0.22)');  // 邊緣 78%: 昏暗微光
+      ambGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');    // 極限 100%: 完全融入漆黑
       lCtx.fillStyle = ambGrad;
       lCtx.beginPath();
       lCtx.arc(px, py, v.ambientRadius, 0, Math.PI * 2);
       lCtx.fill();
 
-      // 2.2 前方特定武器視錐 (Directional Vision Cone)
+      // 2.2 前方武器戰術探照燈光束 (Directional Flashlight Beam with Falloff)
       if (v.angle < Math.PI * 2) {
         const facing = this.player.angle;
-        const coneGrad = lCtx.createRadialGradient(px, py, 25, px, py, v.range);
-        coneGrad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');
-        coneGrad.addColorStop(0.65, 'rgba(0, 0, 0, 0.88)');
-        coneGrad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
+        const coneGrad = lCtx.createRadialGradient(px, py, 15, px, py, v.range);
+        coneGrad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');     // 槍口手電筒強光
+        coneGrad.addColorStop(0.25, 'rgba(0, 0, 0, 0.95)');
+        coneGrad.addColorStop(0.55, 'rgba(0, 0, 0, 0.60)'); // 中遠程自然光衰
+        coneGrad.addColorStop(0.80, 'rgba(0, 0, 0, 0.20)'); // 射程邊緣微光
+        coneGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');   // 盡頭完全融入黑暗
         lCtx.fillStyle = coneGrad;
         lCtx.beginPath();
         lCtx.moveTo(px, py);
@@ -1139,7 +1143,7 @@ export class CombatScene {
           const dy = py + Math.sin(orbitAngle) * 55;
           const dGrad = lCtx.createRadialGradient(dx, dy, 5, dx, dy, 120);
           dGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
-          dGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.7)');
+          dGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0.60)');
           dGrad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
           lCtx.fillStyle = dGrad;
           lCtx.beginPath();
@@ -1155,7 +1159,7 @@ export class CombatScene {
           const hy = p.y + offY;
           const hGrad = lCtx.createRadialGradient(hx, hy, 10, hx, hy, (p.blastRadius || 120) * 1.2);
           hGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
-          hGrad.addColorStop(0.6, 'rgba(0, 0, 0, 0.75)');
+          hGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0.60)');
           hGrad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
           lCtx.fillStyle = hGrad;
           lCtx.beginPath();
@@ -1168,19 +1172,20 @@ export class CombatScene {
       if (this.boss && !this.boss.isDead) {
         const bx = this.boss.x + offX;
         const by = this.boss.y + offY;
-        const bGrad = lCtx.createRadialGradient(bx, by, 10, bx, by, 180);
-        bGrad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
+        const bGrad = lCtx.createRadialGradient(bx, by, 10, bx, by, 200);
+        bGrad.addColorStop(0, 'rgba(0, 0, 0, 0.90)');
+        bGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0.50)');
         bGrad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
         lCtx.fillStyle = bGrad;
         lCtx.beginPath();
-        lCtx.arc(bx, by, 180, 0, Math.PI * 2);
+        lCtx.arc(bx, by, 200, 0, Math.PI * 2);
         lCtx.fill();
       }
 
-      // 3. 回復正常混合模式，繪製掩體幾何精確陰影投射 (Obstacle Dynamic Shadow Casting)
+      // 3. 掩體幾何精確陰影投射 (Obstacle Dynamic Shadow Casting)
       if (!isBossRoom) {
         lCtx.globalCompositeOperation = 'source-over';
-        lCtx.fillStyle = 'rgba(6, 8, 12, 0.86)';
+        lCtx.fillStyle = 'rgba(3, 4, 6, 0.96)';
 
         for (const obs of this.obstacles) {
           if (obs.isDead) continue;
@@ -1230,7 +1235,7 @@ export class CombatScene {
         }
       }
 
-      // 4. 戰術煙霧在遮罩層開闢清晰視野 (避免黑霧遮擋子彈與主角)
+      // 4. 戰術煙霧在遮罩層開闢清晰視野
       lCtx.globalCompositeOperation = 'destination-out';
       for (const s of this.particles.smokeClouds) {
         const sx = s.x + offX;
@@ -1245,7 +1250,19 @@ export class CombatScene {
         lCtx.fill();
       }
 
-      // 5. 將動態視野光影遮罩覆蓋到主畫布
+      // 5. 全屏距離暗角深度漸層 (越遠越暗：從玩家感知半徑向外自然衰減為深邃黑夜)
+      if (!isBossRoom) {
+        lCtx.globalCompositeOperation = 'source-over';
+        const distVignette = lCtx.createRadialGradient(px, py, v.ambientRadius * 0.75, px, py, 600);
+        distVignette.addColorStop(0, 'rgba(3, 4, 6, 0.0)');
+        distVignette.addColorStop(0.45, 'rgba(3, 4, 6, 0.35)');
+        distVignette.addColorStop(0.80, 'rgba(3, 4, 6, 0.75)');
+        distVignette.addColorStop(1.0, 'rgba(3, 4, 6, 0.96)');
+        lCtx.fillStyle = distVignette;
+        lCtx.fillRect(0, 0, 540, 960);
+      }
+
+      // 6. 將動態視野光影遮罩覆蓋到主畫布
       ctx.drawImage(this.lightingCanvas, 0, 0);
     }
 
