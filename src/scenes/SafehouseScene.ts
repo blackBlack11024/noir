@@ -248,7 +248,7 @@ export class SafehouseScene {
         }
       }
     } else if (this.activeTab === 'shadow') {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 6; i++) {
         const ry = L.upgRowBaseY + i * L.upgRowGap;
         if (mx >= 390 && mx <= 488 && my >= ry && my <= ry + rowH) {
           if (i === 0) {
@@ -258,12 +258,15 @@ export class SafehouseScene {
             const cost = 150 * (GameState.upgrades.speedLevel + 1);
             tryBuy(cost, GameState.upgrades.speedLevel, 5, () => GameState.upgrades.speedLevel++);
           } else if (i === 2) {
+            const cost = 120 * (GameState.upgrades.visionLevel + 1);
+            tryBuy(cost, GameState.upgrades.visionLevel, 5, () => GameState.upgrades.visionLevel++);
+          } else if (i === 3) {
             const cost = 200 * (GameState.upgrades.bulletTimeLevel + 1);
             tryBuy(cost, GameState.upgrades.bulletTimeLevel, 5, () => GameState.upgrades.bulletTimeLevel++);
-          } else if (i === 3) {
+          } else if (i === 4) {
             const cost = 180 * (GameState.upgrades.executionLevel + 1);
             tryBuy(cost, GameState.upgrades.executionLevel, 5, () => GameState.upgrades.executionLevel++);
-          } else if (i === 4) {
+          } else if (i === 5) {
             const cost = 600;
             if (!GameState.upgrades.revivalUnlocked && GameState.totalCash >= cost) {
               GameState.totalCash -= cost;
@@ -587,13 +590,16 @@ export class SafehouseScene {
       const c2 = 150 * (GameState.upgrades.speedLevel + 1);
       renderUpgradeRow(L.upgRowBaseY + L.upgRowGap, '清道夫敏捷', 'Lv ' + GameState.upgrades.speedLevel + '/5 (移速 +' + (GameState.upgrades.speedLevel * 5) + '%)', c2, GameState.upgrades.speedLevel >= 5);
 
+      const cVision = 120 * (GameState.upgrades.visionLevel + 1);
+      renderUpgradeRow(L.upgRowBaseY + L.upgRowGap * 2, '夜行者夜視鏡', 'Lv ' + GameState.upgrades.visionLevel + '/5 (視野探照距離 +' + (GameState.upgrades.visionLevel * 15) + '%)', cVision, GameState.upgrades.visionLevel >= 5);
+
       const c3 = 200 * (GameState.upgrades.bulletTimeLevel + 1);
-      renderUpgradeRow(L.upgRowBaseY + L.upgRowGap * 2, '完美閃避子彈時間', 'Lv ' + GameState.upgrades.bulletTimeLevel + '/5 (慢動作 +' + (GameState.upgrades.bulletTimeLevel * 0.15).toFixed(2) + 's)', c3, GameState.upgrades.bulletTimeLevel >= 5);
+      renderUpgradeRow(L.upgRowBaseY + L.upgRowGap * 3, '完美閃避子彈時間', 'Lv ' + GameState.upgrades.bulletTimeLevel + '/5 (慢動作 +' + (GameState.upgrades.bulletTimeLevel * 0.15).toFixed(2) + 's)', c3, GameState.upgrades.bulletTimeLevel >= 5);
 
       const c4 = 180 * (GameState.upgrades.executionLevel + 1);
-      renderUpgradeRow(L.upgRowBaseY + L.upgRowGap * 3, '殘血處決斬殺', 'Lv ' + GameState.upgrades.executionLevel + '/5 (低於' + (GameState.upgrades.executionLevel * 4) + '%斬殺)', c4, GameState.upgrades.executionLevel >= 5);
+      renderUpgradeRow(L.upgRowBaseY + L.upgRowGap * 4, '殘血處決斬殺', 'Lv ' + GameState.upgrades.executionLevel + '/5 (低於' + (GameState.upgrades.executionLevel * 4) + '%斬殺)', c4, GameState.upgrades.executionLevel >= 5);
 
-      renderUpgradeRow(L.upgRowBaseY + L.upgRowGap * 4, '起死回生保命', GameState.upgrades.revivalUnlocked ? '已解鎖 (每輪1次免費復活)' : '未解鎖 (致命傷時原地復活)', 600, GameState.upgrades.revivalUnlocked);
+      renderUpgradeRow(L.upgRowBaseY + L.upgRowGap * 5, '起死回生保命', GameState.upgrades.revivalUnlocked ? '已解鎖 (每輪1次免費復活)' : '未解鎖 (致命傷時原地復活)', 600, GameState.upgrades.revivalUnlocked);
     }
 
     // 底部犯罪戰績記錄

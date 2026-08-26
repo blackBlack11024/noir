@@ -23,6 +23,7 @@ export interface MafiaUpgrades {
   // 4. 夜行者身手 (Shadow Arts)
   hpLevel: number;             // 0 ~ 10 (+10 HP/級)
   speedLevel: number;          // 0 ~ 5 (+5% 移速/級)
+  visionLevel: number;         // 0 ~ 5 (戰術夜視探照視野 +15%/級)
   bulletTimeLevel: number;     // 0 ~ 5 (完美閃避子彈時間延長 0.15s/級)
   executionLevel: number;      // 0 ~ 5 (殘血處決閾值 +4%/級)
   revivalUnlocked: boolean;    // 每輪 1 次免費保命復活
@@ -128,6 +129,7 @@ class GameStateManager {
       startingCashLevel: 0,
       hpLevel: 0,
       speedLevel: 0,
+      visionLevel: 0,
       bulletTimeLevel: 0,
       executionLevel: 0,
       revivalUnlocked: false,

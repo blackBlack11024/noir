@@ -1130,7 +1130,41 @@ export class CombatScene {
         lCtx.fill();
       }
 
-      // 2.3 Boss 威壓微光
+      // 2.3 伴飛無人機偵察探照光 (Drones Recon Searchlight)
+      const droneCount = this.player.getTotalDroneCount();
+      if (droneCount > 0) {
+        for (let di = 0; di < droneCount; di++) {
+          const orbitAngle = (Date.now() / 600) + (di * Math.PI * 2) / droneCount;
+          const dx = px + Math.cos(orbitAngle) * 55;
+          const dy = py + Math.sin(orbitAngle) * 55;
+          const dGrad = lCtx.createRadialGradient(dx, dy, 5, dx, dy, 120);
+          dGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
+          dGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.7)');
+          dGrad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
+          lCtx.fillStyle = dGrad;
+          lCtx.beginPath();
+          lCtx.arc(dx, dy, 120, 0, Math.PI * 2);
+          lCtx.fill();
+        }
+      }
+
+      // 2.4 地面燃燒火海動態火光 (Fire Hazard Dynamic Glow)
+      for (const p of this.projectiles.list) {
+        if (p.isAreaHazard) {
+          const hx = p.x + offX;
+          const hy = p.y + offY;
+          const hGrad = lCtx.createRadialGradient(hx, hy, 10, hx, hy, (p.blastRadius || 120) * 1.2);
+          hGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
+          hGrad.addColorStop(0.6, 'rgba(0, 0, 0, 0.75)');
+          hGrad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
+          lCtx.fillStyle = hGrad;
+          lCtx.beginPath();
+          lCtx.arc(hx, hy, (p.blastRadius || 120) * 1.2, 0, Math.PI * 2);
+          lCtx.fill();
+        }
+      }
+
+      // 2.5 Boss 威壓微光
       if (this.boss && !this.boss.isDead) {
         const bx = this.boss.x + offX;
         const by = this.boss.y + offY;

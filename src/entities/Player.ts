@@ -202,41 +202,49 @@ export class Player {
   }
 
   public getVisionStats(): { range: number; angle: number; ambientRadius: number } {
+    // 局外夜視鏡等級加成 (+15%/級，最高 +75%)
+    const visionUpgradeMult = 1.0 + (GameState.upgrades.visionLevel || 0) * 0.15;
+
     // 若為 BOSS 戰房間，給予全局開闊明亮的對決視野
     if (GameState.currentRun && GameState.currentRun.roomIndex === 4) {
-      return { range: 680, angle: Math.PI * 2, ambientRadius: 460 };
+      return { range: 680 * visionUpgradeMult, angle: Math.PI * 2, ambientRadius: 460 * visionUpgradeMult };
     }
 
     const w = this.getCurrentWeapon();
     const isMelee = (w.category === 'melee' || (w.category === 'heavy' && w.maxAmmo === 0));
 
     if (isMelee) {
-      // 1. 近戰神兵 (手杖劍/砍刀/跳刀/指虎/鋼盾)：360度直覺感知，近身全方位圓形視野 (半徑 280px)
-      return { range: 280, angle: Math.PI * 2, ambientRadius: 280 };
+      // 1. 近戰神兵 (手杖劍/砍刀/跳刀/指虎/鋼盾/重鐮/工兵鏟/鋼鞭)：360度直覺感知，近身全方位圓形視野 (半徑 290px)
+      return { range: 290 * visionUpgradeMult, angle: Math.PI * 2, ambientRadius: 290 * visionUpgradeMult };
     }
 
     if (w.id === 13) {
-      // 2. 栓動狙擊步槍：超遠狙擊鏡直線光束死線 (視野長度 720px，狹長 28度 聚焦)
-      return { range: 720, angle: 0.48, ambientRadius: 100 };
+      // 2. 栓動狙擊步槍：超遠狙擊鏡直線光束死線 (視野長度 740px，聚焦光束)
+      return { range: 740 * visionUpgradeMult, angle: 0.52, ambientRadius: 110 * visionUpgradeMult };
     }
 
-    if (w.id === 7 || w.id === 23) {
-      // 3. 突擊卡賓槍 / 和平捍衛者：長程精準探照 (長度 560px，45度 視錐)
-      return { range: 560, angle: 0.78, ambientRadius: 120 };
+    if (w.id === 10) {
+      // 3. 重型戰術十字弩：長程戰術穿雲箭視野 (長度 620px，50度 視錐)
+      return { range: 620 * visionUpgradeMult, angle: 0.88, ambientRadius: 130 * visionUpgradeMult };
     }
 
-    if (w.category === 'heavy' || w.id === 4 || w.id === 6) {
-      // 4. 霰彈槍 / 噴火槍：超寬壓迫扇形照明 (長度 340px，100度 超寬扇形)
-      return { range: 340, angle: 1.75, ambientRadius: 140 };
+    if (w.id === 7 || w.id === 23 || w.id === 3) {
+      // 4. 突擊卡賓槍 / 和平捍衛者 / 槓桿步槍：長程精準探照 (長度 580px，52度 視錐)
+      return { range: 580 * visionUpgradeMult, angle: 0.90, ambientRadius: 130 * visionUpgradeMult };
     }
 
-    if (w.category === 'automatic' || w.id === 8 || w.id === 20) {
-      // 5. 衝鋒槍 / 毒氣槍：中距離均勻掃射光錐 (長度 400px，75度 視錐)
-      return { range: 400, angle: 1.3, ambientRadius: 125 };
+    if (w.category === 'heavy' || w.id === 4 || w.id === 6 || w.id === 12 || w.id === 18) {
+      // 5. 霰彈槍 / 噴火槍 / 炸藥桶 / 乾冰槍：超寬壓迫扇形照明 (長度 380px，100度 超寬扇形)
+      return { range: 380 * visionUpgradeMult, angle: 1.75, ambientRadius: 145 * visionUpgradeMult };
     }
 
-    // 6. 經典左輪 / 手槍：標準手電筒探照 (長度 440px，60度 視錐)
-    return { range: 440, angle: 1.05, ambientRadius: 125 };
+    if (w.category === 'automatic' || w.id === 8 || w.id === 20 || w.id === 22) {
+      // 6. 衝鋒槍 / 毒氣槍 / 重機槍：中距離均勻掃射光錐 (長度 420px，75度 視錐)
+      return { range: 420 * visionUpgradeMult, angle: 1.3, ambientRadius: 135 * visionUpgradeMult };
+    }
+
+    // 7. 經典左輪 / 手槍 / 特殊無人機 / 音叉：標準探照燈 (長度 460px，65度 視錐)
+    return { range: 460 * visionUpgradeMult, angle: 1.15, ambientRadius: 135 * visionUpgradeMult };
   }
 
   public update(dt: number, enemies: Enemy[], boss: Boss | null, projectiles: ProjectileManager, particles: ParticleSystem) {
