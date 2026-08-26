@@ -98,6 +98,16 @@ export class Player {
   public shieldRushDamage: number = 0;
   public shieldRushHitEnemies: Set<Enemy> = new Set();
 
+  // 加特林機槍專屬機制 (持續射擊加速預熱 + 開火中右鍵秒換彈鏈 + 超頻無限彈藥)
+  public gatlingSpinUp: number = 0; // 0 ~ 1.0
+  public gatlingInfiniteAmmoTimer: number = 0;
+  public gatlingQuickReloadCooldown: number = 0;
+
+  // 工兵鏟專屬機制 (重攻按住遁地無敵 + 氧氣值 + 破土撼地範圍爆炸)
+  public isUnderground: boolean = false;
+  public shovelOxygen: number = 3.5;
+  public shovelMaxOxygen: number = 3.5;
+
   constructor() {
     this.resetFromState();
   }
@@ -127,6 +137,11 @@ export class Player {
     this.isChargingHeavy = false;
     this.chargeTimer = 0;
     this.meleeSwingTimer = 0;
+    this.gatlingSpinUp = 0;
+    this.gatlingInfiniteAmmoTimer = 0;
+    this.gatlingQuickReloadCooldown = 0;
+    this.isUnderground = false;
+    this.shovelOxygen = 3.5;
   }
 
   public resetForNewRun() {
@@ -257,6 +272,31 @@ export class Player {
     if (this.bulletTimeTimer > 0) this.bulletTimeTimer -= dt;
     if (this.perfectDodgeBuffTimer > 0) this.perfectDodgeBuffTimer -= dt;
     if (this.timeRewindCooldown > 0) this.timeRewindCooldown -= dt;
+    if (this.gatlingInfiniteAmmoTimer > 0) this.gatlingInfiniteAmmoTimer -= dt;
+    if (this.gatlingQuickReloadCooldown > 0) this.gatlingQuickReloadCooldown -= dt;
+
+    const curWeapon = this.getCurrentWeapon();
+    // 加特林射擊預熱冷卻衰減
+    if (curWeapon.id === 19) {
+      if (!InputManager.isLmbDown && !InputManager.touchAttack && this.gatlingInfiniteAmmoTimer <= 0) {
+        this.gatlingSpinUp = Math.max(0, this.gatlingSpinUp - dt * 1.5);
+      }
+    } else {
+      this.gatlingSpinUp = 0;
+    }
+
+    // 工兵鏟遁地潛行狀態與氧氣消耗/回復
+    if (this.isUnderground) {
+      this.iFrames = Math.max(this.iFrames, 0.2);
+      this.shovelOxygen = Math.max(0, this.shovelOxygen - dt);
+      particles.spawnSmoke(this.x, this.y, 1, '#8b5a2b');
+      if (this.shovelOxygen <= 0) {
+        this.emergeFromUnderground(enemies, boss, projectiles, particles);
+      }
+    } else {
+      this.shovelOxygen = Math.min(this.shovelMaxOxygen, this.shovelOxygen + dt * 1.1);
+    }
+
     if (this.stealthTimer > 0) {
       this.stealthTimer -= dt;
       this.iFrames = Math.max(this.iFrames, 0.1);
@@ -786,18 +826,37 @@ export class Player {
         }
       }
 
-      // 2. 單指按住移動並蓄力，放開手指瞬間釋放重攻擊
+      // 2. 移動端重攻擊/特化機制
       const isMovingTouch = InputManager.joystickActive || InputManager.touchCharge;
-      if (isMovingTouch && !this.isReloading) {
-        this.isChargingHeavy = true;
-        this.chargeTimer += dt * this.heavyChargeSpeedMult;
-      } else if (this.isChargingHeavy) {
-        const chargeRatio = Math.min(1.0, this.chargeTimer / weapon.heavyChargeTime);
-        if (chargeRatio >= 0.28) {
-          this.fireHeavyAttack(weapon, chargeRatio, enemies, boss, projectiles, particles);
+      if (weapon.id === 19) {
+        // 加特林：觸控蓄力按鈕為快速裝填彈鏈
+        if (InputManager.touchCharge) {
+          this.triggerGatlingQuickReload(particles);
         }
-        this.isChargingHeavy = false;
-        this.chargeTimer = 0;
+      } else if (weapon.id === 21) {
+        // 工兵鏟：按住遁地無敵，放開破土範圍轟炸
+        if (InputManager.touchCharge) {
+          if (!this.isUnderground && this.shovelOxygen > 0.4) {
+            this.isUnderground = true;
+            AudioManager.playHit();
+            particles.spawnExplosion(this.x, this.y);
+            particles.addDamageText(this.x, this.y - 30, '🫧 潛入地底 (無敵)！', '#8b5a2b', true);
+          }
+        } else if (this.isUnderground) {
+          this.emergeFromUnderground(enemies, boss, projectiles, particles);
+        }
+      } else {
+        if (isMovingTouch && !this.isReloading) {
+          this.isChargingHeavy = true;
+          this.chargeTimer += dt * this.heavyChargeSpeedMult;
+        } else if (this.isChargingHeavy) {
+          const chargeRatio = Math.min(1.0, this.chargeTimer / weapon.heavyChargeTime);
+          if (chargeRatio >= 0.28) {
+            this.fireHeavyAttack(weapon, chargeRatio, enemies, boss, projectiles, particles);
+          }
+          this.isChargingHeavy = false;
+          this.chargeTimer = 0;
+        }
       }
     } else {
       // PC 端鍵鼠操作模式
@@ -845,19 +904,92 @@ export class Player {
         }
       }
 
-      // 蓄力重攻擊 (右鍵)
-      const isCharging = InputManager.isRmbDown;
-      if (isCharging && !this.isReloading) {
-        this.isChargingHeavy = true;
-        this.chargeTimer += dt * this.heavyChargeSpeedMult;
-      } else if (this.isChargingHeavy) {
-        const chargeRatio = Math.min(1.0, this.chargeTimer / weapon.heavyChargeTime);
-        if (chargeRatio >= 0.25) {
-          this.fireHeavyAttack(weapon, chargeRatio, enemies, boss, projectiles, particles);
+      // 重攻擊 (右鍵) 特化模組
+      if (weapon.id === 19) {
+        // 加特林：右鍵為秒裝填彈鏈 (開火中亦可無縫觸發)
+        if (InputManager.isRmbJustPressed) {
+          this.triggerGatlingQuickReload(particles);
         }
-        this.isChargingHeavy = false;
-        this.chargeTimer = 0;
+      } else if (weapon.id === 21) {
+        // 工兵鏟：右鍵按住遁地潛行無敵，放開破土撼地爆破
+        if (InputManager.isRmbDown) {
+          if (!this.isUnderground && this.shovelOxygen > 0.4) {
+            this.isUnderground = true;
+            AudioManager.playHit();
+            particles.spawnExplosion(this.x, this.y);
+            particles.addDamageText(this.x, this.y - 30, '🫧 潛入地底 (無敵)！', '#8b5a2b', true);
+          }
+        } else if (this.isUnderground) {
+          this.emergeFromUnderground(enemies, boss, projectiles, particles);
+        }
+      } else {
+        // 常規蓄力重攻擊 (右鍵)
+        const isCharging = InputManager.isRmbDown;
+        if (isCharging && !this.isReloading) {
+          this.isChargingHeavy = true;
+          this.chargeTimer += dt * this.heavyChargeSpeedMult;
+        } else if (this.isChargingHeavy) {
+          const chargeRatio = Math.min(1.0, this.chargeTimer / weapon.heavyChargeTime);
+          if (chargeRatio >= 0.25) {
+            this.fireHeavyAttack(weapon, chargeRatio, enemies, boss, projectiles, particles);
+          }
+          this.isChargingHeavy = false;
+          this.chargeTimer = 0;
+        }
       }
+    }
+  }
+
+  // 加特林機槍：右鍵極速裝填彈鏈 (開火中亦可無縫觸發，不中斷攻擊與預熱)
+  public triggerGatlingQuickReload(particles: ParticleSystem) {
+    const weapon = this.getCurrentWeapon();
+    if (this.gatlingQuickReloadCooldown > 0) return;
+    this.setAmmo(weapon.maxAmmo);
+    this.gatlingQuickReloadCooldown = 0.8;
+    AudioManager.playReload();
+    AudioManager.playShot('revolver');
+    InputManager.haptic([25, 50]);
+    particles.spawnElectricSparks(this.x, this.y, 16);
+    particles.addDamageText(this.x, this.y - 30, '⚡ 彈鏈極速裝填！', '#ffd700', true);
+  }
+
+  // 工兵鏟：破土而出 360° 範圍震盪爆破與眩暈
+  public emergeFromUnderground(enemies: Enemy[], boss: Boss | null, projectiles: ProjectileManager, particles: ParticleSystem) {
+    if (!this.isUnderground) return;
+    this.isUnderground = false;
+
+    AudioManager.playExplosion();
+    AudioManager.playParry();
+    InputManager.haptic([50, 100]);
+
+    const weapon = this.getCurrentWeapon();
+    const damage = weapon.damage * 2.6 * this.damageMult;
+
+    particles.spawnExplosion(this.x, this.y);
+    particles.spawnSmoke(this.x, this.y, 25, '#8b5a2b');
+    particles.addDamageText(this.x, this.y - 30, '💥 破土撼地爆破！', '#ffd700', true);
+
+    // 140px 範圍破土巨額震盪傷害與眩暈擊飛
+    for (const e of enemies) {
+      if (e.isDead) continue;
+      const edist = Math.hypot(e.x - this.x, e.y - this.y);
+      if (edist <= 145) {
+        e.takeDamage(damage, particles, undefined, true);
+        e.knockbackVx = Math.cos(Math.atan2(e.y - this.y, e.x - this.x)) * 650;
+        e.knockbackVy = Math.sin(Math.atan2(e.y - this.y, e.x - this.x)) * 650;
+        e.staggerTimer = 1.5;
+        e.state = 'stagger';
+      }
+    }
+
+    if (boss && !boss.isDead && Math.hypot(boss.x - this.x, boss.y - this.y) <= 155) {
+      boss.takeDamage(damage, particles);
+    }
+
+    // 破土在身旁生成 2 塊戰術沙袋掩體 / 捕獸夾
+    for (let ti = 0; ti < 2; ti++) {
+      const ta = (Math.PI * ti) + this.angle;
+      projectiles.spawnTrap(this.x + Math.cos(ta) * 45, this.y + Math.sin(ta) * 45, weapon.damage * 1.5);
     }
   }
 
@@ -1257,7 +1389,7 @@ export class Player {
 
   // === 15 大遠程與特殊神兵完全獨立輕攻擊模組 ===
   private executeUniqueRangedLight(weapon: WeaponInfo, damage: number, statusEffect: any, isCrit: boolean, projectiles: ProjectileManager, particles: ParticleSystem) {
-    if (this.ironFortressTimer <= 0) {
+    if (this.ironFortressTimer <= 0 && this.gatlingInfiniteAmmoTimer <= 0) {
       this.setAmmo(this.getAmmo() - 1);
     }
     const spawnX = this.x + Math.cos(this.angle) * 20;
@@ -1359,14 +1491,29 @@ export class Player {
         }
         break;
       }
-      case 19: { // 19. 手提轉輪加特林：三重旋轉重鉛彈幕
+      case 19: { // 19. 手提轉輪加特林：越射越快加速預熱 + 超頻無限彈藥風暴
+        this.gatlingSpinUp = Math.min(1.0, this.gatlingSpinUp + 0.08);
+        const bAtkSpd = this.berserkTimer > 0 ? 0.6 : (this.goldFrenzyTimer > 0 ? 0.35 : 1.0);
+        const currentCooldown = this.gatlingInfiniteAmmoTimer > 0 ? 0.022 : (0.09 - 0.065 * this.gatlingSpinUp);
+        this.lightAttackCooldown = currentCooldown * bAtkSpd;
+
         AudioManager.playShot('tommy');
-        InputManager.haptic(18);
-        for (let i = -1; i <= 1; i++) {
-          const spread = (Math.random() - 0.5) * 0.2;
-          projectiles.spawnBullet(spawnX, spawnY, this.angle + spread, 620, damage * 0.4, true, '#90a4ae', isCrit, 1, statusEffect, 'bullet');
+        InputManager.haptic(16);
+
+        const isOverclock = this.gatlingInfiniteAmmoTimer > 0;
+        const bulletColor = isOverclock ? '#ffd700' : (this.gatlingSpinUp > 0.65 ? '#ff7043' : '#90a4ae');
+        const bulletDmg = isOverclock ? damage * 0.70 : damage * 0.45;
+        const bulletSpeed = isOverclock ? 900 : (640 + this.gatlingSpinUp * 180);
+        const bulletEffect = isOverclock || this.gatlingSpinUp > 0.7 ? 'burn' : statusEffect;
+
+        const spread = (Math.random() - 0.5) * (isOverclock ? 0.08 : 0.16);
+        projectiles.spawnBullet(spawnX, spawnY, this.angle + spread, bulletSpeed, bulletDmg, true, bulletColor, isCrit || isOverclock, isOverclock ? 3 : 1, bulletEffect, 'bullet');
+
+        if (isOverclock || this.gatlingSpinUp > 0.75) {
+          particles.spawnMuzzleFlash(spawnX, spawnY, this.angle, '#ff9800');
+        } else {
+          particles.spawnSmoke(spawnX, spawnY, 2);
         }
-        particles.spawnSmoke(spawnX, spawnY, 4);
         break;
       }
       case 22: { // 22. 毒氣榴彈發射器：拋物線綠色劇毒榴彈
@@ -1428,6 +1575,55 @@ export class Player {
         particles.spawnSmoke(this.x, this.y, 8);
         particles.spawnElectricSparks(this.x, this.y, 10);
         InputManager.haptic([40, 80]);
+        return;
+      }
+
+      if (weapon.id === 14) {
+        // 14. 荊棘毒藤鋼鞭重攻擊：千頭毒藤·噬血萬鞭穿刺 (伸出 8 條墨綠鋼鞭穿刺前方 + 噬血汲取 HP)
+        AudioManager.playSlash();
+        AudioManager.playParry();
+        InputManager.haptic([40, 80]);
+
+        this.meleeSwingTimer = 0.35;
+        this.meleeBladeLength = 180;
+        this.meleeSwingAngleStart = this.angle - 1.2;
+        this.meleeSwingAngleEnd = this.angle + 1.2;
+
+        let siphonedHp = 0;
+
+        // 向前扇形噴射 8 條高速荊棘鋼鞭毒刺彈幕 (貫穿所有敵怪)
+        for (let i = -3.5; i <= 3.5; i += 1.0) {
+          const spread = i * 0.15;
+          projectiles.spawnBullet(this.x, this.y, this.angle + spread, 680, damage * 0.45, true, '#2e8b57', true, 4, 'bleed', 'crossbow_bolt');
+        }
+
+        // 近中身 180px 範圍千藤橫掃與噬血汲取
+        for (const e of enemies) {
+          if (e.isDead) continue;
+          const edist = Math.hypot(e.x - this.x, e.y - this.y);
+          if (edist < 185) {
+            const eAngle = Math.atan2(e.y - this.y, e.x - this.x);
+            let diff = Math.abs(eAngle - this.angle);
+            if (diff > Math.PI) diff = Math.PI * 2 - diff;
+            if (diff < 1.4) {
+              siphonedHp += (e.isElite ? 8 : 4);
+              e.takeDamage(damage * 1.5, particles, 'bleed', true, this.angle);
+              particles.spawnBlood(e.x, e.y, 8);
+            }
+          }
+        }
+
+        if (boss && !boss.isDead && Math.hypot(boss.x - this.x, boss.y - this.y) < 195) {
+          siphonedHp += 12;
+          boss.takeDamage(damage * 1.5, particles);
+          particles.spawnBlood(boss.x, boss.y, 16);
+        }
+
+        if (siphonedHp > 0) {
+          this.hp = Math.min(this.maxHp, this.hp + siphonedHp);
+          if (GameState.currentRun) GameState.currentRun.hp = this.hp;
+          particles.addDamageText(this.x, this.y - 25, `🩸 噬血汲取 +${siphonedHp} HP`, '#ff1744', true);
+        }
         return;
       }
 
@@ -1822,10 +2018,17 @@ export class Player {
         }
         break;
 
-      case 19: // 重型轉輪加特林: 鋼鐵堡壘展開
-        this.ironFortressTimer = 3.5;
-        particles.addDamageText(this.x, this.y, '鋼鐵堡壘！', '#ffd700', true);
+      case 19: { // 19. 重型手提轉輪加特林: 超載·無限彈藥風暴 (6 秒無限彈藥 + 滿速預熱)
+        this.gatlingInfiniteAmmoTimer = 6.0;
+        this.gatlingSpinUp = 1.0;
+        this.setAmmo(weapon.maxAmmo);
+        AudioManager.playExplosion();
+        AudioManager.playReload();
+        InputManager.haptic([50, 100]);
+        particles.addDamageText(this.x, this.y - 30, '🔥 超載·無限彈藥風暴 (6s)！', '#ff4500', true);
+        particles.spawnMuzzleFlash(this.x, this.y, this.angle, '#ffd700');
         break;
+      }
 
       case 20: // 黑金湯姆森衝鋒槍: 教父終極處刑 (32 發黃金全屏彈幕)
         for (let i = 0; i < 32; i++) {
@@ -1834,16 +2037,54 @@ export class Player {
         }
         break;
 
-      case 21: // 戰術工兵鏟: 地下潛伏破土
-        this.iFrames = 1.0;
-        this.x += Math.cos(this.angle) * 120;
-        this.y += Math.sin(this.angle) * 120;
-        this.clampPosition();
-        particles.spawnExplosion(this.x, this.y);
+      case 21: { // 21. 戰術折疊工兵鏟: 地裂震地穿刺 (Seismic Fissure 直線穿刺)
+        AudioManager.playExplosion();
+        AudioManager.playHit();
+        InputManager.haptic([60, 120]);
+        particles.addDamageText(this.x, this.y - 25, '🌋 地裂震地穿刺！', '#8b5a2b', true);
+
+        const fissureLen = 550;
+        const fissureWidth = 75;
+        const fissureDmg = weapon.damage * 3.8 * this.damageMult;
+
+        // 沿直線向前爆發地裂碎石衝擊
+        for (let fi = 1; fi <= 12; fi++) {
+          const fx = this.x + Math.cos(this.angle) * (fi * 45);
+          const fy = this.y + Math.sin(this.angle) * (fi * 45);
+          if (fx >= 30 && fx <= 510 && fy >= 70 && fy <= 890) {
+            particles.spawnSmoke(fx, fy, 4, '#8b5a2b');
+            particles.spawnElectricSparks(fx, fy, 4);
+          }
+        }
+
+        // 判定直線判定框內的所有敵人與 Boss
         for (const e of enemies) {
-          if (Math.hypot(e.x - this.x, e.y - this.y) < 90) e.takeDamage(weapon.damage * 3.0, particles, undefined, true);
+          if (e.isDead) continue;
+          const edx = e.x - this.x;
+          const edy = e.y - this.y;
+          const forwardDist = edx * Math.cos(this.angle) + edy * Math.sin(this.angle);
+          const perpDist = Math.abs(-edx * Math.sin(this.angle) + edy * Math.cos(this.angle));
+
+          if (forwardDist >= 0 && forwardDist <= fissureLen && perpDist <= fissureWidth) {
+            e.takeDamage(fissureDmg, particles, 'bleed', true, this.angle);
+            e.knockbackVx = Math.cos(this.angle) * 750;
+            e.knockbackVy = Math.sin(this.angle) * 750;
+            e.staggerTimer = 2.0;
+            e.state = 'stagger';
+          }
+        }
+
+        if (boss && !boss.isDead) {
+          const bdx = boss.x - this.x;
+          const bdy = boss.y - this.y;
+          const forwardDist = bdx * Math.cos(this.angle) + bdy * Math.sin(this.angle);
+          const perpDist = Math.abs(-bdx * Math.sin(this.angle) + bdy * Math.cos(this.angle));
+          if (forwardDist >= 0 && forwardDist <= fissureLen && perpDist <= fissureWidth + boss.radius) {
+            boss.takeDamage(fissureDmg, particles);
+          }
         }
         break;
+      }
 
       case 22: // 毒氣榴彈: 毒性連鎖引爆
         for (let i = -1; i <= 1; i++) {
@@ -2164,6 +2405,51 @@ export class Player {
       }
     }
 
+    // 工兵鏟遁地狀態渲染 (潛入地底，呈現土堆旋渦與氧氣指示條)
+    if (this.isUnderground) {
+      ctx.save();
+      ctx.translate(px, py);
+      // 土堆泥土旋渦
+      ctx.fillStyle = '#8b5a2b';
+      ctx.beginPath();
+      ctx.arc(0, 0, 16 + Math.sin(Date.now() / 60) * 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#5d4037';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // 氧氣存量進度條
+      const oxW = 44;
+      const oxH = 5;
+      const oxRatio = Math.max(0, this.shovelOxygen / this.shovelMaxOxygen);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+      ctx.fillRect(-oxW / 2, -32, oxW, oxH);
+      ctx.fillStyle = '#00e5ff';
+      ctx.fillRect(-oxW / 2, -32, oxW * oxRatio, oxH);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-oxW / 2, -32, oxW, oxH);
+      ctx.restore();
+      return;
+    }
+
+    // 工兵鏟地上緩慢回氧提示
+    if (!this.isUnderground && curW.id === 21 && this.shovelOxygen < this.shovelMaxOxygen) {
+      ctx.save();
+      ctx.translate(px, py);
+      const oxW = 36;
+      const oxH = 4;
+      const oxRatio = Math.max(0, this.shovelOxygen / this.shovelMaxOxygen);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.fillRect(-oxW / 2, -28, oxW, oxH);
+      ctx.fillStyle = '#8b5a2b';
+      ctx.fillRect(-oxW / 2, -28, oxW * oxRatio, oxH);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-oxW / 2, -28, oxW, oxH);
+      ctx.restore();
+    }
+
     // 腳底動態精力弧光環 (讓玩家視線集中於主角時，清晰感知衝刺翻滾冷卻)
     ctx.save();
     ctx.translate(px, py);
@@ -2178,6 +2464,15 @@ export class Player {
       ctx.lineWidth = isReady ? 2.5 : 1.5;
       ctx.beginPath();
       ctx.arc(0, 0, this.radius + 7, startA, endA);
+      ctx.stroke();
+    }
+
+    // 加特林超頻無限彈藥烈焰光環 (Overclock Infinite Ammo Fire Aura)
+    if (this.gatlingInfiniteAmmoTimer > 0) {
+      ctx.strokeStyle = '#ff3d00';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius + 10 + Math.sin(Date.now() / 50) * 3, 0, Math.PI * 2);
       ctx.stroke();
     }
 
