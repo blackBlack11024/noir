@@ -344,13 +344,19 @@ export class CombatScene {
 
     // 浮士德血祭神龕更新
     if (this.altarModal.isOpen) {
-      this.altarModal.update(this.player);
+      const pNext = this.altarModal.update(this.player);
+      if (pNext) {
+        return this.advanceRoom();
+      }
       return null;
     }
 
     // 軍火黑市改裝台更新
     if (this.gunsmithModal.isOpen) {
-      this.gunsmithModal.update(this.player);
+      const pNext = this.gunsmithModal.update(this.player);
+      if (pNext) {
+        return this.advanceRoom();
+      }
       return null;
     }
 
