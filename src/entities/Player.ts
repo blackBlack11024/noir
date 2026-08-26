@@ -1623,9 +1623,29 @@ export class Player {
         }
         break;
 
-      case 10: // 重型戰術十字弩: 捕獸夾陷阱網
-        projectiles.spawnTrap(this.x + Math.cos(this.angle) * 60, this.y + Math.sin(this.angle) * 60, weapon.damage * 2.5);
+      case 10: { // 10. 重型戰術十字弩: 巨神破甲·死線穿雲箭 (Titan Siege Bolt & Trap Network)
+        AudioManager.playShot('revolver');
+        AudioManager.playParry();
+        InputManager.haptic([50, 100]);
+        particles.addDamageText(this.x, this.y - 25, '🏹 巨神破甲·死線穿雲箭！', '#d4af37', true);
+
+        // 1. 發射超巨型全圖穿牆破甲巨矢 (450% 貫穿傷害，穿透全圖所有掩體與敵人)
+        const siegeDmg = weapon.damage * 4.5 * this.damageMult;
+        projectiles.spawnBullet(this.x, this.y, this.angle, 1100, siegeDmg, true, '#ffd700', true, 999, 'bleed', 'crossbow_bolt');
+        particles.spawnMuzzleFlash(this.x + Math.cos(this.angle) * 40, this.y + Math.sin(this.angle) * 40, this.angle, '#ffd700');
+
+        // 2. 沿途前方戰術佈設 4 枚連鎖機關地雷陣
+        for (let ti = 1; ti <= 4; ti++) {
+          const trapDist = 55 * ti;
+          const trapX = this.x + Math.cos(this.angle) * trapDist;
+          const trapY = this.y + Math.sin(this.angle) * trapDist;
+          if (trapX >= 35 && trapX <= 505 && trapY >= 75 && trapY <= 885) {
+            projectiles.spawnTrap(trapX, trapY, weapon.damage * 1.5);
+            particles.spawnElectricSparks(trapX, trapY, 8);
+          }
+        }
         break;
+      }
 
       case 11: { // 格鬥精鋼指虎: 升龍天翔破 (突進烈焰上勾拳)
         this.iFrames = 0.5;

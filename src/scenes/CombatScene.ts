@@ -859,10 +859,20 @@ export class CombatScene {
               this.camera.shake(1.8, 0.06);
             }
 
-            // 陷阱定身觸發
+            // 陷阱/地雷定身並同步向觸發方向發射穿牆重型弩彈
             if (p.isTrap) {
               e.staggerTimer = 2.5;
               e.state = 'stagger';
+              AudioManager.playShot('revolver');
+              this.particles.spawnElectricSparks(p.x, p.y, 16);
+
+              // 地雷引爆時同步朝觸發方向連射 3 發穿牆貫穿弩矢 (Wall-Piercing Crossbow Bolts)
+              const trigAngle = Math.atan2(e.y - p.y, e.x - p.x);
+              for (let bi = -1; bi <= 1; bi++) {
+                const boltAngle = trigAngle + bi * 0.22;
+                this.projectiles.spawnBullet(p.x, p.y, boltAngle, 800, p.damage * 1.5, true, '#d4af37', true, 999, 'bleed', 'crossbow_bolt');
+              }
+              this.particles.spawnMuzzleFlash(p.x, p.y, trigAngle, '#ffd700');
             }
 
             // 炸藥桶/爆裂彈引發範圍大爆炸 (AOE Explosion)
@@ -942,6 +952,17 @@ export class CombatScene {
             this.boss.takeDamage(p.damage, this.particles);
             if (GameState.currentRun) GameState.currentRun.damageDealt += p.damage;
             
+            if (p.isTrap) {
+              AudioManager.playShot('revolver');
+              this.particles.spawnElectricSparks(p.x, p.y, 16);
+              const trigAngle = Math.atan2(this.boss.y - p.y, this.boss.x - p.x);
+              for (let bi = -1; bi <= 1; bi++) {
+                const boltAngle = trigAngle + bi * 0.22;
+                this.projectiles.spawnBullet(p.x, p.y, boltAngle, 800, p.damage * 1.5, true, '#d4af37', true, 999, 'bleed', 'crossbow_bolt');
+              }
+              this.particles.spawnMuzzleFlash(p.x, p.y, trigAngle, '#ffd700');
+            }
+
             // 炸藥桶命中 Boss 觸發大範圍爆破
             if (p.isExplosive || p.visualType === 'dynamite') {
               this.particles.spawnExplosion(p.x, p.y);
