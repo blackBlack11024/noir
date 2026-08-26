@@ -451,7 +451,7 @@ export class CombatScene {
     }
 
     this.particles.update(dt);
-    this.projectiles.update(dt, this.player.x, this.player.y);
+    this.projectiles.update(dt, this.player.x, this.player.y, this.enemies, this.boss);
 
     // 金幣黑洞磁力吸附
     if (this.isRoomCleared) {
@@ -844,6 +844,19 @@ export class CombatScene {
               e.state = 'stagger';
             }
 
+            // 神風自殺無人機引發連鎖大自爆與 AOE 濺射
+            if (p.isHomingDrone) {
+              this.particles.spawnExplosion(p.x, p.y);
+              this.particles.spawnElectricSparks(p.x, p.y, 25);
+              this.camera.shake(7.0, 0.18);
+              AudioManager.playExplosion();
+              for (const other of this.enemies) {
+                if (other !== e && !other.isDead && Math.hypot(other.x - p.x, other.y - p.y) < 120) {
+                  other.takeDamage(p.damage * 0.7, this.particles, 'shock', true);
+                }
+              }
+            }
+
             // 彈射跳彈 (Ricochet) 物理折射
             if (p.ricochetCount && p.ricochetCount > 0) {
               p.ricochetCount--;
@@ -883,7 +896,12 @@ export class CombatScene {
           if (Math.sqrt(dx * dx + dy * dy) < this.boss.radius + p.radius) {
             this.boss.takeDamage(p.damage, this.particles);
             if (GameState.currentRun) GameState.currentRun.damageDealt += p.damage;
-            if (p.isHeavy) {
+            if (p.isHomingDrone) {
+              this.particles.spawnExplosion(p.x, p.y);
+              this.particles.spawnElectricSparks(p.x, p.y, 25);
+              this.camera.shake(7.5, 0.2);
+              AudioManager.playExplosion();
+            } else if (p.isHeavy) {
               this.hitstopTimer = 0.05;
               this.camera.shake(6.0, 0.14);
             } else {

@@ -33,6 +33,8 @@ export interface Projectile {
   isGrapple?: boolean;    // 鋼纜抓鉤
   isBlackHole?: boolean;  // 引力黑洞漩渦
   isNuke?: boolean;       // 輪盤毀滅核彈
+  isHomingDrone?: boolean;// 神風自律追蹤自殺無人機
+  targetEnemy?: any;      // 鎖定追蹤目標
   ricochetCount?: number; // 彈射跳彈剩餘次數
   rotation?: number;      // 旋轉角度
   rotSpeed?: number;
@@ -42,7 +44,7 @@ export interface Projectile {
 export class ProjectileManager {
   public list: Projectile[] = [];
 
-  public update(dt: number, playerX?: number, playerY?: number) {
+  public update(dt: number, playerX?: number, playerY?: number, enemies?: any[], boss?: any) {
     for (let i = this.list.length - 1; i >= 0; i--) {
       const p = this.list[i];
 
@@ -60,6 +62,44 @@ export class ProjectileManager {
             this.list.splice(i, 1);
             continue;
           }
+        }
+      }
+
+      // 神風自律追蹤無人機超強自動導引
+      if (p.isHomingDrone) {
+        let target = p.targetEnemy;
+        if (!target || target.isDead) {
+          p.targetEnemy = undefined;
+          if (enemies && enemies.length > 0) {
+            let closestD = 9999;
+            for (const e of enemies) {
+              if (e.isDead) continue;
+              const d = Math.hypot(e.x - p.x, e.y - p.y);
+              if (d < closestD) {
+                closestD = d;
+                p.targetEnemy = e;
+              }
+            }
+          }
+          if (!p.targetEnemy && boss && !boss.isDead) {
+            p.targetEnemy = boss;
+          }
+          target = p.targetEnemy;
+        }
+
+        if (target && !target.isDead) {
+          const dx = target.x - p.x;
+          const dy = target.y - p.y;
+          const targetAngle = Math.atan2(dy, dx);
+          const curAngle = Math.atan2(p.vy, p.vx);
+          let diff = targetAngle - curAngle;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          const newAngle = curAngle + diff * Math.min(1.0, 14 * dt);
+          const curSpeed = Math.hypot(p.vx, p.vy);
+          const nextSpeed = Math.min(620, curSpeed + 350 * dt);
+          p.vx = Math.cos(newAngle) * nextSpeed;
+          p.vy = Math.sin(newAngle) * nextSpeed;
         }
       }
 
@@ -262,6 +302,48 @@ export class ProjectileManager {
         ctx.beginPath();
         ctx.arc(0, 0, p.radius + 6, -Math.PI / 2.5, Math.PI / 2.5);
         ctx.stroke();
+      } else if (p.isHomingDrone) {
+        // 自律神風自爆無人機：流線金屬雙翼 + 尾部等離子噴流 + 旋轉蜂鳴指示燈
+        ctx.translate(px, py);
+        ctx.rotate(angle);
+
+        // 噴射尾焰
+        ctx.fillStyle = '#ff1744';
+        ctx.beginPath();
+        ctx.moveTo(-12, 0);
+        ctx.lineTo(-24 - Math.random() * 8, -4);
+        ctx.lineTo(-24 - Math.random() * 8, 4);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#00e5ff';
+        ctx.beginPath();
+        ctx.moveTo(-8, 0);
+        ctx.lineTo(-18, -2);
+        ctx.lineTo(-18, 2);
+        ctx.closePath();
+        ctx.fill();
+
+        // 鈦金機翼
+        ctx.fillStyle = '#141e28';
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(14, 0);
+        ctx.lineTo(-6, -14);
+        ctx.lineTo(-12, -9);
+        ctx.lineTo(-6, 0);
+        ctx.lineTo(-12, 9);
+        ctx.lineTo(-6, 14);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 能量核心與自爆紅光
+        ctx.fillStyle = (Math.floor(Date.now() / 80) % 2 === 0) ? '#ff1744' : '#00e5ff';
+        ctx.beginPath();
+        ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+        ctx.fill();
       } else if (p.visualType === 'shotgun_pellet') {
         // 8. 霰彈鋼珠
         ctx.fillStyle = '#ffb300';
@@ -395,6 +477,26 @@ export class ProjectileManager {
       isAreaHazard: true,
       tickTimer: 0,
       tickInterval: 0.25
+    });
+  }
+
+  public spawnHomingDrone(x: number, y: number, angle: number, target: any, damage: number, color: string = '#00e5ff') {
+    this.list.push({
+      x,
+      y,
+      vx: Math.cos(angle) * 380,
+      vy: Math.sin(angle) * 380,
+      radius: 14,
+      damage,
+      isPlayer: true,
+      color,
+      life: 4.5,
+      maxLife: 4.5,
+      pierce: 1,
+      isHeavy: true,
+      isHomingDrone: true,
+      targetEnemy: target,
+      statusEffect: 'shock'
     });
   }
 }

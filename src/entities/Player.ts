@@ -1696,13 +1696,37 @@ export class Player {
         particles.addDamageText(this.x, this.y, '嗜血戰吼！', '#ff1744', true);
         break;
 
-      case 16: // 自律無人機: 自爆無人機
-        if (enemies.length > 0) {
-          const target = enemies[0];
-          particles.spawnExplosion(target.x, target.y);
-          target.takeDamage(weapon.damage * 4.0, particles, 'shock', true);
+      case 16: { // 16. 自律無人機控制器: 自律蜂群·神風自殺自爆 (Swarm Kamikaze Detonation)
+        const totalDrones = Math.max(3, this.getTotalDroneCount());
+        const livingEnemies = enemies.filter(e => !e.isDead);
+
+        AudioManager.playExplosion();
+        InputManager.haptic([50, 120]);
+        particles.addDamageText(this.x, this.y - 30, `💥 蜂群神風自爆 (${totalDrones}架齊出)！`, '#00e5ff', true);
+
+        for (let i = 0; i < totalDrones; i++) {
+          const orbitAngle = (Date.now() / 600) + (i * Math.PI * 2 / totalDrones);
+          const startX = this.x + Math.cos(orbitAngle) * 55;
+          const startY = this.y + Math.sin(orbitAngle) * 55;
+
+          // 目標分配：優先均勻鎖定全場活著的小怪與 BOSS
+          let target: any = null;
+          if (livingEnemies.length > 0) {
+            target = livingEnemies[i % livingEnemies.length];
+          } else if (boss && !boss.isDead) {
+            target = boss;
+          }
+
+          const droneAngle = target ? Math.atan2(target.y - startY, target.x - startX) : orbitAngle;
+          const droneDmg = weapon.damage * 4.5 * this.damageMult;
+          projectiles.spawnHomingDrone(startX, startY, droneAngle, target, droneDmg, '#00e5ff');
+          particles.spawnElectricSparks(startX, startY, 8);
         }
+
+        // 僚機全部出擊自爆後重設召喚數量
+        this.activeSummonedDrones = 0;
         break;
+      }
 
       case 17: // 聲波管風琴音叉: 催眠音律
         for (const e of enemies) {
