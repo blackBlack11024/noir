@@ -1,6 +1,7 @@
 import { WEAPON_DATABASE } from '../data/WeaponDatabase';
 
 export type CocktailType = 'absinthe' | 'bloody_mary' | 'godfather' | 'cryo_gin' | null;
+export type PassportType = 'default' | 'hitman' | 'bootlegger' | 'high_roller' | 'brawler' | 'cyber_tinkerer';
 
 export interface MafiaUpgrades {
   // 1. 軍械精通 (Combat Lab)
@@ -12,6 +13,7 @@ export interface MafiaUpgrades {
 
   // 2. 禁酒令調酒吧 (Speakeasy)
   selectedCocktail: CocktailType;
+  secondaryCocktail: CocktailType;
 
   // 3. 黑市放貸與銀行 (Underworld Bank)
   bankInterestLevel: number;   // 0 ~ 5 (每過一關黑金利息 +2%/級)
@@ -24,6 +26,10 @@ export interface MafiaUpgrades {
   bulletTimeLevel: number;     // 0 ~ 5 (完美閃避子彈時間延長 0.15s/級)
   executionLevel: number;      // 0 ~ 5 (殘血處決閾值 +4%/級)
   revivalUnlocked: boolean;    // 每輪 1 次免費保命復活
+
+  // 5. 五大黑道身份執照 (Mafia Passports)
+  selectedPassport: PassportType;
+  unlockedPassports: PassportType[];
 }
 
 export interface CareerStats {
@@ -66,6 +72,12 @@ export interface RunState {
   isReloading: boolean;
   reloadTimer: number;
   activeBoons: string[];
+  boonLevels: { [boonId: string]: number }; // Lv.1, Lv.2, Lv.3 (MAX)
+  rerollTokens: number;
+  cursePacts: string[];
+  weaponMutations: { [weaponId: number]: string };
+  heatLevel: number; // 0 ~ 5
+  heatScore: number;
   styleScore: number;
   styleRank: string; // D, C, B, A, S, SSS
   comboCount: number;
@@ -75,6 +87,8 @@ export interface RunState {
   startTime: number;
   roomsCleared: number;
   selectedCocktail: CocktailType;
+  secondaryCocktail: CocktailType;
+  passport: PassportType;
 }
 
 class GameStateManager {
@@ -107,6 +121,7 @@ class GameStateManager {
       reloadSpeedLevel: 0,
       heavyMasteryLevel: 0,
       selectedCocktail: null,
+      secondaryCocktail: null,
       bankInterestLevel: 0,
       rerollDiscountLevel: 0,
       startingCashLevel: 0,
@@ -114,7 +129,9 @@ class GameStateManager {
       speedLevel: 0,
       bulletTimeLevel: 0,
       executionLevel: 0,
-      revivalUnlocked: false
+      revivalUnlocked: false,
+      selectedPassport: 'default',
+      unlockedPassports: ['default', 'hitman', 'bootlegger', 'high_roller', 'brawler', 'cyber_tinkerer']
     };
   }
 
@@ -153,12 +170,23 @@ class GameStateManager {
 
     this.careerStats.totalRuns++;
 
+    const passport = this.upgrades.selectedPassport || 'default';
+    let initMaxHp = 100 + bonusHp;
+    if (passport === 'hitman') {
+      initMaxHp = 60; // 冷血殺手：鎖死 60 血極致容錯
+    }
+
+    let initCash = startCash;
+    if (passport === 'high_roller') {
+      initCash = 0; // 亡命賭徒：身無分文開局
+    }
+
     this.currentRun = {
-      hp: 100 + bonusHp,
-      maxHp: 100 + bonusHp,
+      hp: initMaxHp,
+      maxHp: initMaxHp,
       stamina: 3,
       maxStamina: 3,
-      cash: startCash,
+      cash: initCash,
       zone: 1,
       roomIndex: 1,
       loopCount: 1,
@@ -170,6 +198,12 @@ class GameStateManager {
       isReloading: false,
       reloadTimer: 0,
       activeBoons: [],
+      boonLevels: {},
+      rerollTokens: 3,
+      cursePacts: [],
+      weaponMutations: {},
+      heatLevel: 0,
+      heatScore: 0,
       styleScore: 0,
       styleRank: 'D',
       comboCount: 0,
@@ -178,7 +212,9 @@ class GameStateManager {
       damageDealt: 0,
       startTime: performance.now(),
       roomsCleared: 0,
-      selectedCocktail: this.upgrades.selectedCocktail
+      selectedCocktail: this.upgrades.selectedCocktail,
+      secondaryCocktail: this.upgrades.secondaryCocktail,
+      passport: passport
     };
 
     // g6 黑市高利貸天賦 (開局額外 300 黑金)

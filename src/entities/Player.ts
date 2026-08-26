@@ -75,11 +75,17 @@ export class Player {
   public heavyChargeSpeedMult: number = 1.0;
   public damageReduction: number = 0.0;
 
-  // 頂級機制神賜 (衛星飛刀 / 自律僚機 / 暗影分身 / 時空子彈時間)
+  // 頂級機制神賜 (衛星飛刀 / 自律僚機 / 暗影分身 / 時空子彈時間 / 輪盤 / 私酒 / 電影)
   public orbitBladeAngle: number = 0;
   public droneShootTimer: number = 0;
   public bulletTimeTimer: number = 0;
-  public perfectDodgeBuffTimer: number = 0; // 極限閃避後 2.5 秒內下一次攻擊必定暴擊 +50% 增傷
+  public perfectDodgeBuffTimer: number = 0;
+  public shotCounter: number = 0;
+  public drunkenFrenzyTimer: number = 0;
+  public filmReelUsed: boolean = false;
+  public timeRewindCooldown: number = 0;
+  public lastDamageAmount: number = 0;
+  public activeSummonedDrones: number = 0;
   public shadowClones: { x: number; y: number; angle: number; alpha: number; duration: number }[] = [];
 
   // 防暴鋼盾專屬機制 (輕攻按住舉盾防禦 + 重攻擊滑行衝刺 + 格擋子彈增傷)
@@ -111,6 +117,21 @@ export class Player {
         this.hasShield = true;
       }
     }
+  }
+
+  public getTotalDroneCount(): number {
+    let count = this.activeSummonedDrones || 0;
+    if (GameState.currentRun) {
+      if (GameState.currentRun.activeBoons.includes('e1')) count += 1;
+      if (GameState.currentRun.activeBoons.includes('e2')) count += 1;
+      if (GameState.currentRun.activeBoons.includes('e9')) count += 2;
+      if (GameState.currentRun.activeBoons.includes('syn10')) count += 1;
+      if (GameState.currentRun.activeBoons.includes('v9')) count += 1;
+    }
+    if (this.getCurrentWeapon().id === 16 && count === 0) {
+      count = 1;
+    }
+    return Math.min(8, count);
   }
 
   public getCurrentWeapon(): WeaponInfo {
@@ -173,10 +194,13 @@ export class Player {
   public update(dt: number, enemies: Enemy[], boss: Boss | null, projectiles: ProjectileManager, particles: ParticleSystem) {
     this.applyBoonBuffs(enemies);
 
-    // 特殊 Buff 計時
     if (this.berserkTimer > 0) this.berserkTimer -= dt;
     if (this.ironFortressTimer > 0) this.ironFortressTimer -= dt;
     if (this.quickSwapBuffTimer > 0) this.quickSwapBuffTimer -= dt;
+    if (this.drunkenFrenzyTimer > 0) this.drunkenFrenzyTimer -= dt;
+    if (this.bulletTimeTimer > 0) this.bulletTimeTimer -= dt;
+    if (this.perfectDodgeBuffTimer > 0) this.perfectDodgeBuffTimer -= dt;
+    if (this.timeRewindCooldown > 0) this.timeRewindCooldown -= dt;
     if (this.stealthTimer > 0) {
       this.stealthTimer -= dt;
       this.iFrames = Math.max(this.iFrames, 0.1);
@@ -380,30 +404,65 @@ export class Player {
       }
     }
 
-    // 自律防衛僚機運算 (v9)
-    if (GameState.currentRun && GameState.currentRun.activeBoons.includes('v9')) {
+    // 自律防衛僚機編隊運算 (e1, e2, e9, syn10, v9)
+    let droneCount = 0;
+    if (GameState.currentRun) {
+      if (GameState.currentRun.activeBoons.includes('e1')) droneCount += 1;
+      if (GameState.currentRun.activeBoons.includes('e2')) droneCount += 1;
+      if (GameState.currentRun.activeBoons.includes('e9')) droneCount += 2;
+      if (GameState.currentRun.activeBoons.includes('syn10')) droneCount += 1;
+      if (GameState.currentRun.activeBoons.includes('v9')) droneCount += 1;
+    }
+
+    if (droneCount > 0) {
       this.droneShootTimer -= dt;
       if (this.droneShootTimer <= 0) {
-        this.droneShootTimer = 0.75;
-        for (let di = 0; di < 2; di++) {
-          const da = (Date.now() / 600) + di * Math.PI;
-          const dx = this.x + Math.cos(da) * 38;
-          const dy = this.y + Math.sin(da) * 38;
+        this.droneShootTimer = GameState.currentRun?.activeBoons.includes('e10') ? 0.45 : 0.85;
+        for (let di = 0; di < droneCount; di++) {
+          const da = (Date.now() / 600) + di * (Math.PI * 2 / droneCount);
+          const dx = this.x + Math.cos(da) * 42;
+          const dy = this.y + Math.sin(da) * 42;
 
-          let closestE: Enemy | null = null;
-          let minD = 320;
+          let closestTarget: any = null;
+          let minD = 360;
+          if (boss && !boss.isDead) {
+            closestTarget = boss;
+            minD = Math.hypot(boss.x - dx, boss.y - dy);
+          }
           for (const e of enemies) {
             if (e.isDead) continue;
             const ed = Math.hypot(e.x - dx, e.y - dy);
             if (ed < minD) {
               minD = ed;
-              closestE = e;
+              closestTarget = e;
             }
           }
-          if (closestE) {
-            const targetAngle = Math.atan2(closestE.y - dy, closestE.x - dx);
-            projectiles.spawnBullet(dx, dy, targetAngle, 650, 26, true, '#00e5ff', false, 1, 'shock');
+          if (closestTarget) {
+            const targetAngle = Math.atan2(closestTarget.y - dy, closestTarget.x - dx);
+            const isLaser = GameState.currentRun?.activeBoons.includes('e5');
+            const droneDmg = isLaser ? 45 : 28;
+            projectiles.spawnBullet(dx, dy, targetAngle, 650, droneDmg, true, '#00e5ff', false, isLaser ? 4 : 1, 'shock', isLaser ? 'sniper_beam' : 'bullet');
             particles.spawnMuzzleFlash(dx, dy, targetAngle, '#00e5ff');
+            AudioManager.playShot('revolver');
+          }
+        }
+      }
+
+      // e2 無人機機身攔截敵方子彈
+      if (GameState.currentRun?.activeBoons.includes('e2')) {
+        for (let di = 0; di < droneCount; di++) {
+          const da = (Date.now() / 600) + di * (Math.PI * 2 / droneCount);
+          const dx = this.x + Math.cos(da) * 42;
+          const dy = this.y + Math.sin(da) * 42;
+
+          for (let pi = projectiles.list.length - 1; pi >= 0; pi--) {
+            const p = projectiles.list[pi];
+            if (!p.isPlayer && !p.isAreaHazard && Math.hypot(p.x - dx, p.y - dy) < 24) {
+              projectiles.list.splice(pi, 1);
+              particles.spawnElectricSparks(dx, dy, 6);
+              AudioManager.playParry();
+              break;
+            }
           }
         }
       }
@@ -475,7 +534,7 @@ export class Player {
 
     // 觸發翻滾 (舉盾防禦期間禁止翻滾衝刺)
     if ((InputManager.isKeyJustPressed('Space') || InputManager.isKeyJustPressed('ShiftLeft') || InputManager.isSwiping) && !this.isHoldingShield) {
-      this.tryDodge(move, enemies, projectiles);
+      this.tryDodge(move, enemies, projectiles, particles);
     }
 
     // 換彈
@@ -497,7 +556,7 @@ export class Player {
     this.handleCombat(dt, enemies, boss, projectiles, particles);
   }
 
-  private tryDodge(move: { x: number; y: number }, enemies: Enemy[], projectiles: ProjectileManager) {
+  private tryDodge(move: { x: number; y: number }, enemies: Enemy[], projectiles: ProjectileManager, particles: ParticleSystem) {
     if (this.isHoldingShield) return; // 舉盾防禦狀態下無法翻滾衝刺
     if (this.stamina >= 1 && this.dodgeCooldownTimer <= 0 && !this.isDodging) {
       this.stamina -= 1;
@@ -530,12 +589,16 @@ export class Player {
       }
 
       if (isPerfect) {
-        // 觸發時空慢動作子彈時間 (受局外 bulletTimeLevel 升級加成)
-        this.bulletTimeTimer = 0.45 + (GameState.upgrades.bulletTimeLevel * 0.15);
+        // 觸發時空慢動作子彈時間 (受局外 bulletTimeLevel 與 t1 / syn12 升級加成)
+        const isChronoBoon = GameState.currentRun && (GameState.currentRun.activeBoons.includes('t1') || GameState.currentRun.activeBoons.includes('syn12'));
+        this.bulletTimeTimer = (isChronoBoon ? 2.5 : 0.45) + (GameState.upgrades.bulletTimeLevel * 0.15);
         this.perfectDodgeBuffTimer = 2.5; // 下一次攻擊必定致命暴擊 +50% 增傷
         this.stamina = Math.min(this.maxStamina, this.stamina + 1); // 立即返還 1 點精力！
         AudioManager.playParry();
         InputManager.haptic([30, 90]);
+        if (isChronoBoon) {
+          particles.addDamageText(this.x, this.y - 25, '⏳ 時空慢動作！', '#00e5ff', true);
+        }
       }
 
       if (move.x !== 0 || move.y !== 0) {
@@ -546,8 +609,16 @@ export class Player {
         this.dodgeDirY = Math.sin(this.angle);
       }
 
-      AudioManager.playDodge();
-      InputManager.haptic(20);
+      // 冷血殺手執照 (Hitman): 翻滾無冷卻 + 原地幻影瞬移
+      if (GameState.currentRun?.passport === 'hitman') {
+        this.dodgeCooldownTimer = 0;
+        this.shadowClones.push({ x: this.x, y: this.y, angle: this.angle, alpha: 0.8, duration: 0.8 });
+      }
+
+      // 機械狂徒執照 (Cyber Tinkerer): 翻滾自動佈設捕獸夾
+      if (GameState.currentRun?.passport === 'cyber_tinkerer') {
+        projectiles.spawnTrap(this.x, this.y, 60, true);
+      }
 
       // c4 幻影殘影: 翻滾原地留下殘影吸引怪物仇恨 1.5 秒
       if (GameState.currentRun && GameState.currentRun.activeBoons.includes('c4')) {
@@ -570,9 +641,22 @@ export class Player {
         }
       }
 
-      // k3 寒霜足跡: 翻滾凍結路徑敵人 1 秒
+      // k3 寒霜足跡: 翻滾凍結路徑敵人 1.5 秒
       if (GameState.currentRun && GameState.currentRun.activeBoons.includes('k3')) {
-        projectiles.spawnHazardArea(this.x, this.y, 24, 1.5, 12, 'rgba(0, 229, 255, 0.4)', 'freeze');
+        projectiles.spawnHazardArea(this.x, this.y, 28, 1.8, 15, 'rgba(0, 229, 255, 0.4)', 'freeze', true);
+      }
+
+      // e3 倒鉤捕獸夾
+      if (GameState.currentRun && GameState.currentRun.activeBoons.includes('e3')) {
+        projectiles.spawnTrap(this.x, this.y, 50, true);
+      }
+
+      // m1 / syn7 私酒翻滾醉步火海
+      if (GameState.currentRun && (GameState.currentRun.activeBoons.includes('m1') || GameState.currentRun.activeBoons.includes('syn7'))) {
+        particles.spawnSmoke(this.x, this.y, 12, 'rgba(139, 69, 19, 0.5)');
+        if (GameState.currentRun.activeBoons.includes('syn7')) {
+          projectiles.spawnHazardArea(this.x, this.y, 45, 3.0, 45, 'rgba(255, 69, 0, 0.6)', 'burn', true);
+        }
       }
     }
   }
@@ -589,7 +673,19 @@ export class Player {
     this.chargeTimer = 0;
     this.meleeComboStep = 0;
     this.meleeSwingTimer = 0;
-    this.quickSwapBuffTimer = 2.0; // 觸發雙槍秒切增傷 Buff
+    this.quickSwapBuffTimer = 3.0; // 觸發雙槍秒切增傷 Buff
+
+    // q3 後備自動裝填
+    const curW = this.getCurrentWeapon();
+    if (curW.maxAmmo > 0) {
+      this.setAmmo(curW.maxAmmo);
+    }
+
+    // q8 動能秒切回流 (恢復 1 點翻滾精力)
+    if (GameState.currentRun?.activeBoons.includes('q8')) {
+      this.stamina = Math.min(this.maxStamina, this.stamina + 1);
+    }
+
     AudioManager.playReload();
     InputManager.haptic(15);
   }
@@ -738,10 +834,24 @@ export class Player {
       finalDmgMult *= (2.0 + critBonus * 0.5);
       isCrit = true;
     }
-    // g5 賭徒硬幣 (20% 機率暴擊)
-    if (GameState.currentRun && GameState.currentRun.activeBoons.includes('g5') && Math.random() < 0.2) {
-      finalDmgMult *= (1.5 + critBonus);
-      isCrit = true;
+    // 浮士德惡魔契約 (Curse Pacts) 增幅與代價
+    if (GameState.currentRun?.cursePacts) {
+      if (GameState.currentRun.cursePacts.includes('pact_flesh')) {
+        finalDmgMult *= 3.5;
+        this.shotCounter = (this.shotCounter || 0) + 1;
+        if (this.shotCounter % 4 === 0) {
+          this.hp = Math.max(1, this.hp - 1);
+          particles.spawnBlood(this.x, this.y, 4);
+        }
+      }
+      if (GameState.currentRun.cursePacts.includes('pact_glass')) {
+        finalDmgMult *= 4.0;
+        isCrit = true;
+      }
+      if (GameState.currentRun.cursePacts.includes('pact_midas')) {
+        const cashBonus = (GameState.currentRun.cash || 0) * 0.004;
+        finalDmgMult *= (1 + cashBonus);
+      }
     }
 
     const damage = weapon.damage * finalDmgMult;
@@ -764,14 +874,25 @@ export class Player {
     }
   }
 
-  // === 9 大近戰武器完全獨立輕攻擊模組 ===
+  // === 9 大近戰武器完全獨立輕攻擊模組與連段收招系統 ===
   private executeUniqueMeleeLight(weapon: WeaponInfo, damage: number, statusEffect: any, isCrit: boolean, enemies: Enemy[], boss: Boss | null, projectiles: ProjectileManager, particles: ParticleSystem) {
     AudioManager.playSlash();
     InputManager.haptic(20);
 
+    const maxCombo = weapon.comboMaxSteps || 3;
     const step = this.meleeComboStep;
-    this.meleeComboStep = (this.meleeComboStep + 1) % 3;
-    this.meleeComboResetTimer = 0.8;
+    const isFinisher = (step + 1 >= maxCombo);
+
+    if (isFinisher) {
+      this.meleeComboStep = 0;
+      this.meleeComboResetTimer = 0;
+      const bAtkSpd = this.berserkTimer > 0 ? 0.6 : (this.goldFrenzyTimer > 0 ? 0.35 : 1.0);
+      this.lightAttackCooldown = (weapon.comboCooldown || 0.4) * bAtkSpd;
+    } else {
+      this.meleeComboStep = step + 1;
+      this.meleeComboResetTimer = 0.9;
+    }
+
     this.meleeSwingTimer = this.meleeSwingDuration;
 
     let swingRange = 70;
@@ -779,121 +900,234 @@ export class Player {
     let hitDamage = damage;
 
     switch (weapon.id) {
-      case 1: { // 1. 仕紳手杖劍：銀金細劍極速西洋刺擊與優雅弧斬
+      case 1: { // 1. 仕紳手杖劍：3 連擊 (直刺 -> 上撩 -> 360° 疾風圓舞斬)
         swingRange = 72;
         this.meleeBladeLength = 72;
         if (step === 0) {
-          // 直刺
+          // 第 1 段：西洋劍極速直刺
           this.meleeSwingAngleStart = this.angle - 0.2;
           this.meleeSwingAngleEnd = this.angle + 0.2;
-          this.meleeLungeVx = Math.cos(this.angle) * 320;
-          this.meleeLungeVy = Math.sin(this.angle) * 320;
+          this.meleeLungeVx = Math.cos(this.angle) * 340;
+          this.meleeLungeVy = Math.sin(this.angle) * 340;
         } else if (step === 1) {
-          // 上撩斬
+          // 第 2 段：反手斜撩斬
           this.meleeSwingAngleStart = this.angle + 1.1;
           this.meleeSwingAngleEnd = this.angle - 1.1;
+          this.meleeLungeVx = Math.cos(this.angle) * 220;
+          this.meleeLungeVy = Math.sin(this.angle) * 220;
         } else {
-          // 圓舞迴旋
-          this.meleeSwingAngleStart = this.angle - 1.4;
-          this.meleeSwingAngleEnd = this.angle + 1.4;
-          hitDamage *= 1.6;
+          // 第 3 段 (終結技)：360° 疾風圓舞斬
+          this.meleeSwingAngleStart = this.angle - Math.PI;
+          this.meleeSwingAngleEnd = this.angle + Math.PI;
+          hitDamage *= 1.7;
+          knockback = 55;
+          particles.spawnMuzzleFlash(this.x + Math.cos(this.angle) * 30, this.y + Math.sin(this.angle) * 30, this.angle, '#d4af37');
         }
         break;
       }
-      case 2: { // 2. 工頭破拆鎚：沉重泰坦縱劈崩山砸
-        swingRange = 98;
-        this.meleeBladeLength = 98;
-        knockback = 70;
-        this.meleeSwingAngleStart = this.angle - 0.4;
-        this.meleeSwingAngleEnd = this.angle + 0.4;
-        this.meleeLungeVx = Math.cos(this.angle) * 200;
-        this.meleeLungeVy = Math.sin(this.angle) * 200;
-        hitDamage *= 1.3;
-        particles.spawnExplosion(this.x + Math.cos(this.angle) * 60, this.y + Math.sin(this.angle) * 60);
+      case 2: { // 2. 工頭破拆鎚：2 連擊 (泰坦縱劈 -> 180° 碎骨橫掃)
+        swingRange = 100;
+        this.meleeBladeLength = 100;
+        if (step === 0) {
+          knockback = 65;
+          this.meleeSwingAngleStart = this.angle - 0.45;
+          this.meleeSwingAngleEnd = this.angle + 0.45;
+          this.meleeLungeVx = Math.cos(this.angle) * 220;
+          this.meleeLungeVy = Math.sin(this.angle) * 220;
+          hitDamage *= 1.25;
+          particles.spawnExplosion(this.x + Math.cos(this.angle) * 60, this.y + Math.sin(this.angle) * 60);
+        } else {
+          knockback = 90;
+          this.meleeSwingAngleStart = this.angle - 1.6;
+          this.meleeSwingAngleEnd = this.angle + 1.6;
+          this.meleeLungeVx = Math.cos(this.angle) * 160;
+          this.meleeLungeVy = Math.sin(this.angle) * 160;
+          hitDamage *= 1.75;
+          particles.spawnExplosion(this.x + Math.cos(this.angle) * 70, this.y + Math.sin(this.angle) * 70);
+        }
         break;
       }
-      case 5: { // 5. 黑曜跳刀：超高速雙匕首十字交錯連刺 (X-Slash)
-        swingRange = 55;
-        this.meleeBladeLength = 55;
+      case 5: { // 5. 黑曜跳刀：4 連擊 (左挑 -> 右刺 -> 雙刀十字 -> 影襲割喉)
+        swingRange = 58;
+        this.meleeBladeLength = 58;
         if (step === 0) {
           this.meleeSwingAngleStart = this.angle - 0.9;
           this.meleeSwingAngleEnd = this.angle + 0.3;
+          this.meleeLungeVx = Math.cos(this.angle) * 350;
+          this.meleeLungeVy = Math.sin(this.angle) * 350;
         } else if (step === 1) {
           this.meleeSwingAngleStart = this.angle + 0.9;
           this.meleeSwingAngleEnd = this.angle - 0.3;
+          this.meleeLungeVx = Math.cos(this.angle) * 350;
+          this.meleeLungeVy = Math.sin(this.angle) * 350;
+        } else if (step === 2) {
+          this.meleeSwingAngleStart = this.angle - 1.2;
+          this.meleeSwingAngleEnd = this.angle + 1.2;
+          this.meleeLungeVx = Math.cos(this.angle) * 380;
+          this.meleeLungeVy = Math.sin(this.angle) * 380;
+          hitDamage *= 1.4;
         } else {
-          this.meleeSwingAngleStart = this.angle - 1.0;
-          this.meleeSwingAngleEnd = this.angle + 1.0;
+          this.meleeSwingAngleStart = this.angle - 1.5;
+          this.meleeSwingAngleEnd = this.angle + 1.5;
           statusEffect = 'bleed';
-          hitDamage *= 1.8;
+          hitDamage *= 2.0;
+          isCrit = true;
+          this.meleeLungeVx = Math.cos(this.angle) * 440;
+          this.meleeLungeVy = Math.sin(this.angle) * 440;
         }
-        this.meleeLungeVx = Math.cos(this.angle) * 380;
-        this.meleeLungeVy = Math.sin(this.angle) * 380;
         break;
       }
-      case 9: { // 9. 防暴鋼盾警棍：正面窄視錐盾擊格擋+警棍短打電擊
-        swingRange = 62;
-        this.meleeBladeLength = 62;
+      case 9: { // 9. 防暴鋼盾警棍：2 連擊 (正面盾推 -> 警棍重抽電擊)
+        swingRange = 65;
+        this.meleeBladeLength = 65;
         if (step === 0) {
-          // 正面盾牌推進 (收縮格擋角)
-          this.meleeSwingAngleStart = this.angle - 0.65;
-          this.meleeSwingAngleEnd = this.angle + 0.65;
-          knockback = 45;
+          this.meleeSwingAngleStart = this.angle - 0.7;
+          this.meleeSwingAngleEnd = this.angle + 0.7;
+          knockback = 50;
+          this.meleeLungeVx = Math.cos(this.angle) * 260;
+          this.meleeLungeVy = Math.sin(this.angle) * 260;
         } else {
-          // 警棍短打電擊
+          this.meleeSwingAngleStart = this.angle - 0.3;
+          this.meleeSwingAngleEnd = this.angle + 0.3;
+          statusEffect = 'shock';
+          hitDamage *= 1.6;
+          knockback = 65;
+          particles.spawnElectricSparks(this.x + Math.cos(this.angle) * 40, this.y + Math.sin(this.angle) * 40, 10);
+        }
+        break;
+      }
+      case 11: { // 11. 精鋼指虎：5 連擊 (刺拳 -> 直拳 -> 擺拳 -> 腹勾 -> 爆炎升龍拳)
+        swingRange = 52;
+        this.meleeBladeLength = 52;
+        if (step === 0) {
+          this.meleeSwingAngleStart = this.angle - 0.15;
+          this.meleeSwingAngleEnd = this.angle + 0.15;
+          this.meleeLungeVx = Math.cos(this.angle) * 300;
+          this.meleeLungeVy = Math.sin(this.angle) * 300;
+        } else if (step === 1) {
+          this.meleeSwingAngleStart = this.angle + 0.15;
+          this.meleeSwingAngleEnd = this.angle - 0.15;
+          this.meleeLungeVx = Math.cos(this.angle) * 320;
+          this.meleeLungeVy = Math.sin(this.angle) * 320;
+          hitDamage *= 1.15;
+        } else if (step === 2) {
+          this.meleeSwingAngleStart = this.angle - 0.8;
+          this.meleeSwingAngleEnd = this.angle + 0.4;
+          this.meleeLungeVx = Math.cos(this.angle) * 340;
+          this.meleeLungeVy = Math.sin(this.angle) * 340;
+          hitDamage *= 1.3;
+        } else if (step === 3) {
+          this.meleeSwingAngleStart = this.angle + 0.8;
+          this.meleeSwingAngleEnd = this.angle - 0.4;
+          this.meleeLungeVx = Math.cos(this.angle) * 360;
+          this.meleeLungeVy = Math.sin(this.angle) * 360;
+          hitDamage *= 1.5;
+        } else {
+          // 第 5 段終結技：升龍霸！
           this.meleeSwingAngleStart = this.angle - 0.25;
           this.meleeSwingAngleEnd = this.angle + 0.25;
-          statusEffect = 'shock';
-        }
-        break;
-      }
-      case 11: { // 11. 精鋼指虎：拳擊刺拳-擺拳-火焰升龍拳
-        swingRange = 50;
-        this.meleeBladeLength = 50;
-        this.meleeLungeVx = Math.cos(this.angle) * 300;
-        this.meleeLungeVy = Math.sin(this.angle) * 300;
-        this.meleeSwingAngleStart = this.angle - 0.2;
-        this.meleeSwingAngleEnd = this.angle + 0.2;
-        if (step === 2) {
-          hitDamage *= 2.0;
-          knockback = 80;
+          hitDamage *= 2.3;
+          knockback = 85;
+          this.meleeLungeVx = Math.cos(this.angle) * 420;
+          this.meleeLungeVy = Math.sin(this.angle) * 420;
           particles.spawnMuzzleFlash(this.x + Math.cos(this.angle) * 35, this.y + Math.sin(this.angle) * 35, this.angle, '#ff1744');
+          particles.spawnExplosion(this.x + Math.cos(this.angle) * 45, this.y + Math.sin(this.angle) * 45);
         }
         break;
       }
-      case 14: { // 14. 荊棘毒藤鋼鞭：125px 超長距離蛇形甩鞭
-        swingRange = 125;
-        this.meleeBladeLength = 125;
-        this.meleeSwingAngleStart = this.angle - 1.5;
-        this.meleeSwingAngleEnd = this.angle + 1.5;
-        statusEffect = 'bleed';
+      case 14: { // 14. 荊棘毒藤鋼鞭：3 連擊 (縱劈 -> 橫掃 -> 360° 風暴絞殺)
+        swingRange = 130;
+        this.meleeBladeLength = 130;
+        if (step === 0) {
+          this.meleeSwingAngleStart = this.angle - 0.3;
+          this.meleeSwingAngleEnd = this.angle + 0.3;
+          this.meleeLungeVx = Math.cos(this.angle) * 160;
+          this.meleeLungeVy = Math.sin(this.angle) * 160;
+        } else if (step === 1) {
+          this.meleeSwingAngleStart = this.angle - 1.5;
+          this.meleeSwingAngleEnd = this.angle + 1.5;
+          statusEffect = 'bleed';
+          hitDamage *= 1.25;
+        } else {
+          // 終結技：360° 荊棘風暴絞殺 + 吸血
+          this.meleeSwingAngleStart = this.angle - Math.PI;
+          this.meleeSwingAngleEnd = this.angle + Math.PI;
+          hitDamage *= 1.7;
+          knockback = 50;
+          statusEffect = 'bleed';
+          this.hp = Math.min(this.maxHp, this.hp + 3);
+          particles.spawnBlood(this.x, this.y, 12);
+        }
         break;
       }
-      case 15: { // 15. 屠夫砍刀：血霧重斬
-        swingRange = 85;
-        this.meleeBladeLength = 85;
-        this.meleeSwingAngleStart = this.angle - 1.3;
-        this.meleeSwingAngleEnd = this.angle + 1.3;
-        hitDamage *= 1.25;
-        knockback = 50;
+      case 15: { // 15. 屠夫開山鋸齒砍刀：3 連擊 (斜劈 -> 橫斬 -> 狂暴躍剁)
+        swingRange = 88;
+        this.meleeBladeLength = 88;
+        if (step === 0) {
+          this.meleeSwingAngleStart = this.angle - 1.3;
+          this.meleeSwingAngleEnd = this.angle + 0.3;
+          this.meleeLungeVx = Math.cos(this.angle) * 260;
+          this.meleeLungeVy = Math.sin(this.angle) * 260;
+        } else if (step === 1) {
+          this.meleeSwingAngleStart = this.angle + 1.3;
+          this.meleeSwingAngleEnd = this.angle - 0.3;
+          this.meleeLungeVx = Math.cos(this.angle) * 280;
+          this.meleeLungeVy = Math.sin(this.angle) * 280;
+          hitDamage *= 1.3;
+        } else {
+          // 終結技：狂暴躍剁
+          this.meleeSwingAngleStart = this.angle - 0.4;
+          this.meleeSwingAngleEnd = this.angle + 0.4;
+          hitDamage *= 1.9;
+          knockback = 70;
+          this.meleeLungeVx = Math.cos(this.angle) * 380;
+          this.meleeLungeVy = Math.sin(this.angle) * 380;
+          particles.spawnBlood(this.x + Math.cos(this.angle) * 50, this.y + Math.sin(this.angle) * 50, 20);
+        }
         break;
       }
-      case 21: { // 21. 戰術折疊工兵鏟：掘土上挑拋石
-        swingRange = 80;
-        this.meleeBladeLength = 80;
-        this.meleeSwingAngleStart = this.angle + 0.5;
-        this.meleeSwingAngleEnd = this.angle - 0.5;
-        knockback = 60;
-        particles.spawnSmoke(this.x + Math.cos(this.angle) * 45, this.y + Math.sin(this.angle) * 45, 6, '#8b5a2b');
+      case 21: { // 21. 戰術折疊工兵鏟：3 連擊 (橫削 -> 拍擊 -> 掘土揚沙)
+        swingRange = 82;
+        this.meleeBladeLength = 82;
+        if (step === 0) {
+          this.meleeSwingAngleStart = this.angle - 1.0;
+          this.meleeSwingAngleEnd = this.angle + 1.0;
+          knockback = 45;
+        } else if (step === 1) {
+          this.meleeSwingAngleStart = this.angle + 1.0;
+          this.meleeSwingAngleEnd = this.angle - 1.0;
+          knockback = 65;
+          hitDamage *= 1.3;
+        } else {
+          // 終結技：掘土揚沙
+          this.meleeSwingAngleStart = this.angle + 0.6;
+          this.meleeSwingAngleEnd = this.angle - 0.6;
+          knockback = 80;
+          hitDamage *= 1.6;
+          particles.spawnSmoke(this.x + Math.cos(this.angle) * 45, this.y + Math.sin(this.angle) * 45, 12, '#8b5a2b');
+        }
         break;
       }
-      case 24: { // 24. 死神黑鋼處刑重鐮：140度巨大血色彎月收割
-        swingRange = 110;
-        this.meleeBladeLength = 110;
-        this.meleeSwingAngleStart = this.angle - 1.8;
-        this.meleeSwingAngleEnd = this.angle + 1.8;
-        hitDamage *= 1.4;
-        knockback = 55;
+      case 24: { // 24. 死神黑鋼處刑重鐮：2 連擊 (巨弧勾割 -> 360° 死神狂暴大迴旋)
+        swingRange = 115;
+        this.meleeBladeLength = 115;
+        if (step === 0) {
+          this.meleeSwingAngleStart = this.angle - 1.6;
+          this.meleeSwingAngleEnd = this.angle + 1.6;
+          this.meleeLungeVx = Math.cos(this.angle) * 220;
+          this.meleeLungeVy = Math.sin(this.angle) * 220;
+          hitDamage *= 1.35;
+          knockback = 50;
+        } else {
+          // 終結技：360° 死神狂暴大迴旋處決
+          this.meleeSwingAngleStart = this.angle - Math.PI;
+          this.meleeSwingAngleEnd = this.angle + Math.PI;
+          this.meleeLungeVx = Math.cos(this.angle) * 280;
+          this.meleeLungeVy = Math.sin(this.angle) * 280;
+          hitDamage *= 2.0;
+          knockback = 75;
+          particles.spawnElectricSparks(this.x, this.y, 20);
+        }
         break;
       }
       default: {
@@ -1037,11 +1271,21 @@ export class Player {
         particles.spawnSmoke(spawnX, spawnY, 6, 'rgba(0, 255, 255, 0.4)');
         break;
       }
-      case 16: { // 16. 自律無人機：發射雙軌脈衝雷射
+      case 16: { // 16. 自律無人機控制器：引導開火 + 全場所有伴飛僚機同步齊射雙軌雷射！
         AudioManager.playShot('tommy');
-        InputManager.haptic(15);
-        projectiles.spawnBullet(spawnX, spawnY - 12, this.angle, 640, damage * 0.5, true, '#00e5ff', isCrit, 1, 'shock', 'bullet');
-        projectiles.spawnBullet(spawnX, spawnY + 12, this.angle, 640, damage * 0.5, true, '#00e5ff', isCrit, 1, 'shock', 'bullet');
+        InputManager.haptic(18);
+        projectiles.spawnBullet(spawnX, spawnY, this.angle, 720, damage * 0.7, true, '#00e5ff', isCrit, 2, 'shock', 'bullet');
+        particles.spawnMuzzleFlash(spawnX, spawnY, this.angle, '#00e5ff');
+
+        const droneCount = this.getTotalDroneCount();
+        for (let di = 0; di < droneCount; di++) {
+          const da = (Date.now() / 600) + di * (Math.PI * 2 / droneCount);
+          const dx = this.x + Math.cos(da) * 45;
+          const dy = this.y + Math.sin(da) * 45;
+          projectiles.spawnBullet(dx, dy, this.angle, 720, damage * 0.75, true, '#00e5ff', isCrit, 2, 'shock', 'bullet');
+          particles.spawnMuzzleFlash(dx, dy, this.angle, '#00e5ff');
+          particles.spawnElectricSparks(dx, dy, 3);
+        }
         break;
       }
       case 17: { // 17. 聲波管風琴音叉：音波震盪擴散紫環
@@ -1219,6 +1463,14 @@ export class Player {
           projectiles.spawnBullet(spawnX, spawnY, this.angle, 1200, damage * 1.6, true, '#00ffff', true, 8, undefined, 'sniper_beam');
           break;
         }
+        case 16: { // 16. 自律無人機控制器：重攻擊蓄力召喚 1 架伴飛僚機！
+          this.activeSummonedDrones = Math.min(6, (this.activeSummonedDrones || 0) + 1);
+          particles.spawnElectricSparks(this.x, this.y, 25);
+          particles.addDamageText(this.x, this.y - 30, `🤖 召喚伴飛僚機 (共 ${this.getTotalDroneCount()} 架)`, '#00e5ff', true);
+          AudioManager.playShot('revolver');
+          AudioManager.playParry();
+          return;
+        }
         case 17: { // 音叉：全屏共鳴音震
           for (let i = -2; i <= 2; i++) {
             projectiles.spawnBullet(spawnX, spawnY, this.angle + i * 0.35, 450, damage * 0.3, true, '#b388ff', true, 3, 'shock', 'sonic_wave');
@@ -1304,6 +1556,7 @@ export class Player {
       case 3: // 改裝雙動左輪: 左輪速射 (極速六連後撤)
         this.x -= Math.cos(this.angle) * 80;
         this.y -= Math.sin(this.angle) * 80;
+        this.clampPosition();
         for (let i = 0; i < 6; i++) {
           const spread = (Math.random() - 0.5) * 0.3;
           projectiles.spawnBullet(this.x, this.y, this.angle + spread, 620, weapon.damage * 1.3, true, '#c0c0c0', true, 1);
@@ -1372,16 +1625,52 @@ export class Player {
         projectiles.spawnTrap(this.x + Math.cos(this.angle) * 60, this.y + Math.sin(this.angle) * 60, weapon.damage * 2.5);
         break;
 
-      case 11: // 格鬥精鋼指虎: 升龍天翔破 (突進上勾拳)
-        this.x += Math.cos(this.angle) * 150;
-        this.y += Math.sin(this.angle) * 150;
+      case 11: { // 格鬥精鋼指虎: 升龍天翔破 (突進烈焰上勾拳)
+        this.iFrames = 0.5;
+        this.meleeSwingTimer = 0.35;
+        this.meleeBladeLength = 80;
+        this.meleeSwingAngleStart = this.angle - 0.4;
+        this.meleeSwingAngleEnd = this.angle + 0.4;
+        this.meleeLungeVx = Math.cos(this.angle) * 550;
+        this.meleeLungeVy = Math.sin(this.angle) * 550;
+
+        // 向前疾衝並嚴格邊界夾緊
+        this.x += Math.cos(this.angle) * 110;
+        this.y += Math.sin(this.angle) * 110;
+        this.clampPosition();
+
+        AudioManager.playCritHit();
         particles.spawnExplosion(this.x, this.y);
+        particles.spawnElectricSparks(this.x, this.y, 16);
+        particles.addDamageText(this.x, this.y - 20, '升龍天翔破！', '#ffd700', true);
+
+        const skillDamage = weapon.damage * 4.0 * this.damageMult;
+
         for (const e of enemies) {
-          if (Math.hypot(e.x - this.x, e.y - this.y) < 80) {
-            e.takeDamage(weapon.damage * 3.5, particles, undefined, true);
+          if (e.isDead) continue;
+          const edist = Math.hypot(e.x - this.x, e.y - this.y);
+          if (edist < 95) {
+            e.x += Math.cos(this.angle) * 75;
+            e.y += Math.sin(this.angle) * 75;
+            e.x = Math.max(40, Math.min(500, e.x));
+            e.y = Math.max(90, Math.min(870, e.y));
+            const actual = e.takeDamage(skillDamage, particles, undefined, true, this.angle);
+            if (GameState.currentRun) GameState.currentRun.damageDealt += actual;
+            this.triggerOnHitBoons(e.x, e.y, enemies, projectiles, true);
+          }
+        }
+
+        if (boss && !boss.isDead) {
+          const bdist = Math.hypot(boss.x - this.x, boss.y - this.y);
+          if (bdist < 120) {
+            boss.takeDamage(skillDamage, particles);
+            if (GameState.currentRun) GameState.currentRun.damageDealt += skillDamage;
+            boss.x += Math.cos(this.angle) * 20;
+            boss.y += Math.sin(this.angle) * 20;
           }
         }
         break;
+      }
 
       case 12: // 炸藥桶與燃燒瓶: 遙控黏性炸藥
         projectiles.spawnHazardArea(this.x + Math.cos(this.angle) * 90, this.y + Math.sin(this.angle) * 90, 80, 2.5, 45, 'rgba(255, 69, 0, 0.5)', 'burn');
@@ -1447,6 +1736,7 @@ export class Player {
         this.iFrames = 1.0;
         this.x += Math.cos(this.angle) * 120;
         this.y += Math.sin(this.angle) * 120;
+        this.clampPosition();
         particles.spawnExplosion(this.x, this.y);
         for (const e of enemies) {
           if (Math.hypot(e.x - this.x, e.y - this.y) < 90) e.takeDamage(weapon.damage * 3.0, particles, undefined, true);
@@ -1464,6 +1754,7 @@ export class Player {
       case 23: // 雙持和平捍衛者: 致命速射漫遊
         this.x += Math.cos(this.angle) * 100;
         this.y += Math.sin(this.angle) * 100;
+        this.clampPosition();
         for (let i = 0; i < 12; i++) {
           const a = (i / 12) * Math.PI * 2;
           projectiles.spawnBullet(this.x, this.y, a, 600, weapon.damage * 1.5, true, '#daa520', true, 2);
@@ -1551,6 +1842,14 @@ export class Player {
       }
     }
 
+    // 私酒大亨執照 (Bootlegger): 30% 醉步閃避免傷
+    if (GameState.currentRun?.passport === 'bootlegger' && Math.random() < 0.30) {
+      particles.addDamageText(this.x, this.y - 20, '🍸 私酒醉步閃避！', '#2ecc71', true);
+      this.iFrames = 0.4;
+      AudioManager.playDodge();
+      return false;
+    }
+
     // 護盾格擋 (v6)
     if (this.hasShield) {
       this.hasShield = false;
@@ -1566,6 +1865,20 @@ export class Player {
     if (this.ironFortressTimer > 0) finalAmount *= 0.3; // 鋼鐵堡壘 70% 減傷
     if (GameState.currentRun && GameState.currentRun.selectedCocktail === 'godfather') {
       finalAmount *= 1.10; // 教父特調副作用：承傷 +10%
+    }
+
+    // 浮士德惡魔契約 (Curse Pacts) 受傷代價
+    if (GameState.currentRun?.cursePacts) {
+      if (GameState.currentRun.cursePacts.includes('pact_glass')) {
+        finalAmount = Math.max(finalAmount, this.hp * 0.35);
+      }
+      if (GameState.currentRun.cursePacts.includes('pact_midas')) {
+        const lost = Math.floor((GameState.currentRun.cash || 0) * 0.15);
+        if (lost > 0) {
+          GameState.addCash(-lost);
+          particles.addDamageText(this.x, this.y - 20, `掉落 -$${lost} 黑金`, '#ffd700', true);
+        }
+      }
     }
 
     this.hp -= finalAmount;
@@ -1718,25 +2031,33 @@ export class Player {
       }
     }
 
-    // 3. 繪製自律防衛僚機 (Tactical Drones)
-    if (GameState.currentRun && GameState.currentRun.activeBoons.includes('v9')) {
-      for (let di = 0; di < 2; di++) {
-        const da = (Date.now() / 600) + di * Math.PI;
-        const dx = px + Math.cos(da) * 38;
-        const dy = py + Math.sin(da) * 38;
+    // 3. 繪製所有自律防衛僚機 (Tactical Drones)
+    const droneCount = this.getTotalDroneCount();
+    if (droneCount > 0) {
+      for (let di = 0; di < droneCount; di++) {
+        const da = (Date.now() / 600) + di * (Math.PI * 2 / droneCount);
+        const dx = px + Math.cos(da) * 45;
+        const dy = py + Math.sin(da) * 45;
         ctx.save();
         ctx.translate(dx, dy);
-        ctx.rotate(da);
-        ctx.fillStyle = '#1a237e';
-        ctx.fillRect(-6, -4, 12, 8);
+        ctx.rotate(this.angle);
+        // 僚機金屬機身
+        ctx.fillStyle = '#102a43';
+        ctx.fillRect(-8, -5, 16, 10);
         ctx.strokeStyle = '#00e5ff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-6, -4, 12, 8);
-        // 僚機指示燈
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-8, -5, 16, 10);
+        // 僚機雙翼
+        ctx.fillStyle = '#00bcd4';
+        ctx.fillRect(-10, -8, 4, 16);
+        // 僚機發光核心與指示燈
         ctx.fillStyle = '#00e5ff';
         ctx.beginPath();
-        ctx.arc(0, 0, 2, 0, Math.PI * 2);
+        ctx.arc(0, 0, 3, 0, Math.PI * 2);
         ctx.fill();
+        // 噴射微型等離子尾焰
+        ctx.fillStyle = '#80d8ff';
+        ctx.fillRect(-12, -2, 4, 4);
         ctx.restore();
       }
     }

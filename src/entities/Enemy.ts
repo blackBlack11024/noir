@@ -430,6 +430,21 @@ export class Enemy {
       }
     }
 
+    // c5 天降斷頭台斬首處刑
+    if (GameState.currentRun?.activeBoons.includes('c5') && this.hp > 0 && this.hp <= this.maxHp * 0.25) {
+      this.hp = 0;
+      particles.addDamageText(this.x, this.y - 25, '🪓 斷頭台斬首！', '#ff1744', true);
+      AudioManager.playSlash();
+      particles.spawnBlood(this.x, this.y, 25);
+    }
+
+    // p1 提線木偶引線 (操控敵方轉向攻擊身邊怪物)
+    if (GameState.currentRun?.activeBoons.includes('p1') && Math.random() < 0.25) {
+      this.tauntTimer = 3.0;
+      this.facingAngle += Math.PI;
+      particles.addDamageText(this.x, this.y - 25, '🎭 木偶操控！', '#e040fb', true);
+    }
+
     return finalAmount;
   }
 
@@ -445,6 +460,30 @@ export class Enemy {
     }
 
     if (!GameState.currentRun) return;
+
+    // c6 血腥盛宴 (擊殺流血目標吸血)
+    if (this.bleedTimer > 0 && GameState.currentRun.activeBoons.includes('c6')) {
+      player.hp = Math.min(player.maxHp, player.hp + 6);
+      particles.addDamageText(player.x, player.y, '+6 HP', '#2ecc71', true);
+    }
+
+    // p2 混亂假面舞會 (死亡爆發面具彈幕)
+    if (GameState.currentRun.activeBoons.includes('p2')) {
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2;
+        projectiles.spawnBullet(this.x, this.y, a, 320, 40, true, '#e040fb', true, 2, 'shock');
+      }
+    }
+
+    // r5 命運輪盤大劫案 (每擊殺 5 怪爆發 24 顆反彈籌碼)
+    if (GameState.currentRun.activeBoons.includes('r5') && GameState.currentRun.kills % 5 === 0) {
+      for (let i = 0; i < 24; i++) {
+        const a = (i / 24) * Math.PI * 2;
+        projectiles.spawnBullet(this.x, this.y, a, 360, 35, true, '#ffd700', true, 1, undefined, 'bullet', 4);
+      }
+      particles.addDamageText(this.x, this.y, '🎰 輪盤大滿貫！', '#ffd700', true);
+      AudioManager.playCash();
+    }
 
     // i2 連鎖殉爆 (被點燃擊殺引發大爆炸)
     if (this.burnTimer > 0 && GameState.currentRun.activeBoons.includes('i2')) {

@@ -72,8 +72,27 @@ export class ProjectileManager {
       }
       
       // 撞牆或壽命終止
-      if (p.life <= 0 || (!p.isAreaHazard && !p.isTrap && (p.x < 10 || p.x > 530 || p.y < 45 || p.y > 915))) {
+      if (p.life <= 0) {
         this.list.splice(i, 1);
+        continue;
+      }
+
+      if (!p.isAreaHazard && !p.isTrap) {
+        // 邊界碰撞檢測
+        const minX = 25, maxX = 515, minY = 65, maxY = 895;
+        if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) {
+          if (p.ricochetCount && p.ricochetCount > 0) {
+            p.ricochetCount--;
+            p.damage *= 1.35; // 每次彈跳增傷 35%
+            if (p.x < minX) { p.x = minX + 1; p.vx = Math.abs(p.vx); }
+            if (p.x > maxX) { p.x = maxX - 1; p.vx = -Math.abs(p.vx); }
+            if (p.y < minY) { p.y = minY + 1; p.vy = Math.abs(p.vy); }
+            if (p.y > maxY) { p.y = maxY - 1; p.vy = -Math.abs(p.vy); }
+          } else {
+            this.list.splice(i, 1);
+            continue;
+          }
+        }
       }
     }
   }
@@ -198,9 +217,9 @@ export class ProjectileManager {
         // 4. 狙擊死光彈：長條超音速雷射拖尾
         ctx.translate(px, py);
         ctx.rotate(angle);
-        ctx.strokeStyle = '#00ffff';
+        ctx.strokeStyle = p.color || '#00ffff';
         ctx.lineWidth = 3.5;
-        ctx.shadowColor = '#00ffff';
+        ctx.shadowColor = p.color || '#00ffff';
         ctx.shadowBlur = 10;
         ctx.beginPath();
         ctx.moveTo(-28, 0);
@@ -210,18 +229,18 @@ export class ProjectileManager {
         ctx.lineWidth = 1.5;
         ctx.stroke();
       } else if (p.visualType === 'dynamite') {
-        // 5. 旋轉燃燒炸藥棒
+        // 5. 旋轉燃燒炸藥棒 / 滾動酒桶
         ctx.translate(px, py);
         ctx.rotate(p.rotation || 0);
-        ctx.fillStyle = '#cc0000';
-        ctx.fillRect(-10, -4, 20, 8);
+        ctx.fillStyle = p.color || '#cc0000';
+        ctx.fillRect(-12, -6, 24, 12);
         ctx.strokeStyle = '#ffd700';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(-10, -4, 20, 8);
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-12, -6, 24, 12);
         // 引線火星
         ctx.fillStyle = '#ffff00';
         ctx.beginPath();
-        ctx.arc(12, 0, 3 + Math.sin(Date.now() / 50) * 1.5, 0, Math.PI * 2);
+        ctx.arc(14, 0, 3 + Math.sin(Date.now() / 50) * 1.5, 0, Math.PI * 2);
         ctx.fill();
       } else if (p.visualType === 'grenade') {
         // 6. 毒氣榴彈罐
@@ -276,7 +295,7 @@ export class ProjectileManager {
     }
   }
 
-  public spawnBullet(x: number, y: number, angle: number, speed: number, damage: number, isPlayer: boolean, color: string = '#ffd700', isHeavy: boolean = false, pierce: number = 1, statusEffect?: 'bleed' | 'burn' | 'shock' | 'freeze', visualType: ProjectileVisual = 'bullet') {
+  public spawnBullet(x: number, y: number, angle: number, speed: number, damage: number, isPlayer: boolean, color: string = '#ffd700', isHeavy: boolean = false, pierce: number = 1, statusEffect?: 'bleed' | 'burn' | 'shock' | 'freeze', visualType: ProjectileVisual = 'bullet', ricochetCount: number = 0) {
     this.list.push({
       x,
       y,
@@ -286,18 +305,19 @@ export class ProjectileManager {
       damage,
       isPlayer,
       color,
-      life: 2.0,
-      maxLife: 2.0,
+      life: 2.5,
+      maxLife: 2.5,
       pierce,
       isHeavy,
       statusEffect,
       visualType,
+      ricochetCount,
       rotation: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 12
     });
   }
 
-  public spawnBoomerang(x: number, y: number, angle: number, speed: number, damage: number, color: string = '#ff1744') {
+  public spawnBoomerang(x: number, y: number, angle: number, speed: number, damage: number, color: string = '#ff1744', isPlayer: boolean = true) {
     this.list.push({
       x,
       y,
@@ -305,10 +325,10 @@ export class ProjectileManager {
       vy: Math.sin(angle) * speed,
       radius: 18,
       damage,
-      isPlayer: true,
+      isPlayer,
       color,
-      life: 1.8,
-      maxLife: 1.8,
+      life: 2.2,
+      maxLife: 2.2,
       pierce: 999,
       isHeavy: true,
       isBoomerang: true,
@@ -318,7 +338,7 @@ export class ProjectileManager {
     });
   }
 
-  public spawnTrap(x: number, y: number, damage: number = 40) {
+  public spawnTrap(x: number, y: number, damage: number = 40, isPlayer: boolean = true) {
     this.list.push({
       x,
       y,
@@ -326,17 +346,17 @@ export class ProjectileManager {
       vy: 0,
       radius: 20,
       damage,
-      isPlayer: true,
-      color: '#8b4513',
-      life: 10.0,
-      maxLife: 10.0,
+      isPlayer,
+      color: isPlayer ? '#8b4513' : '#ff1744',
+      life: 12.0,
+      maxLife: 12.0,
       pierce: 1,
       isHeavy: false,
       isTrap: true
     });
   }
 
-  public spawnHazardArea(x: number, y: number, radius: number, duration: number, damagePerSec: number, color: string = 'rgba(230, 80, 20, 0.4)', status: 'burn' | 'bleed' | 'freeze') {
+  public spawnHazardArea(x: number, y: number, radius: number, duration: number, damagePerSec: number, color: string = 'rgba(230, 80, 20, 0.4)', status: 'burn' | 'bleed' | 'freeze', isPlayer: boolean = true) {
     this.list.push({
       x,
       y,
@@ -344,7 +364,7 @@ export class ProjectileManager {
       vy: 0,
       radius,
       damage: damagePerSec,
-      isPlayer: true,
+      isPlayer,
       color,
       life: duration,
       maxLife: duration,

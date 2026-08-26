@@ -10,6 +10,8 @@ import { BoonModal } from '../ui/BoonModal';
 import { PauseModal } from '../ui/PauseModal';
 import { MerchantModal } from '../ui/MerchantModal';
 import { TouchControls } from '../ui/TouchControls';
+import { AltarModal } from '../ui/AltarModal';
+import { GunsmithModal } from '../ui/GunsmithModal';
 import { GameState, RunSummary } from '../core/GameState';
 import { AudioManager } from '../core/AudioManager';
 import { InputManager } from '../core/InputManager';
@@ -28,7 +30,7 @@ export interface RoomGate {
   y: number;
   width: number;
   height: number;
-  type: 'merchant' | 'challenge' | 'shrine' | 'normal';
+  type: 'merchant' | 'challenge' | 'shrine' | 'gunsmith' | 'normal';
   label: string;
   icon: string;
   desc: string;
@@ -47,6 +49,8 @@ export class CombatScene {
   public boonModal: BoonModal;
   public pauseModal: PauseModal;
   public merchantModal: MerchantModal;
+  public altarModal: AltarModal;
+  public gunsmithModal: GunsmithModal;
   public touchControls: TouchControls;
 
   public isRoomCleared: boolean = false;
@@ -88,6 +92,8 @@ export class CombatScene {
     this.boonModal = new BoonModal();
     this.pauseModal = new PauseModal();
     this.merchantModal = new MerchantModal();
+    this.altarModal = new AltarModal();
+    this.gunsmithModal = new GunsmithModal();
     this.touchControls = new TouchControls();
 
     this.lightingCanvas = document.createElement('canvas');
@@ -336,6 +342,18 @@ export class CombatScene {
       return null;
     }
 
+    // 浮士德血祭神龕更新
+    if (this.altarModal.isOpen) {
+      this.altarModal.update(this.player);
+      return null;
+    }
+
+    // 軍火黑市改裝台更新
+    if (this.gunsmithModal.isOpen) {
+      this.gunsmithModal.update(this.player);
+      return null;
+    }
+
     // 命中頓幀 (Hitstop)
     if (this.hitstopTimer > 0) {
       this.hitstopTimer -= dt;
@@ -381,7 +399,7 @@ export class CombatScene {
     }
 
     // 檢查玩家踏入戰術分支傳送門
-    if (this.isRoomCleared && this.roomGates.length > 0 && !this.boonModal.isOpen && !this.merchantModal.isOpen) {
+    if (this.isRoomCleared && this.roomGates.length > 0 && !this.boonModal.isOpen && !this.merchantModal.isOpen && !this.altarModal.isOpen && !this.gunsmithModal.isOpen) {
       for (let i = 0; i < this.roomGates.length; i++) {
         const gate = this.roomGates[i];
         const gdx = this.player.x - gate.x;
@@ -392,13 +410,12 @@ export class CombatScene {
             this.roomGates = [];
             return null;
           } else if (gate.type === 'shrine') {
-            this.player.hp = Math.max(1, this.player.hp - 20);
-            if (GameState.currentRun) GameState.currentRun.hp = this.player.hp;
-            this.particles.spawnBlood(this.player.x, this.player.y, 25);
-            this.particles.addDamageText(this.player.x, this.player.y, '獻祭 -20 HP', '#ff1744', true);
-            AudioManager.playSlash();
+            this.altarModal.open();
             this.roomGates = [];
-            this.boonModal.open(true, '血祭神龕：領悟傳奇雙重神賜');
+            return null;
+          } else if (gate.type === 'gunsmith') {
+            this.gunsmithModal.open();
+            this.roomGates = [];
             return null;
           } else {
             this.roomGates = [];
@@ -621,30 +638,41 @@ export class CombatScene {
         }
       }
 
-      // 生成戰術分支傳送門 (若非 BOSS 房)
+      // 生成戰術分支傳送門 (若非 BOSS 房，生成黑市、改裝台、血祭神龕三向抉擇門)
       if (run.roomIndex < 4) {
         this.roomGates = [
           {
-            x: 160,
+            x: 95,
             y: 150,
-            width: 140,
+            width: 130,
             height: 70,
             type: 'merchant',
-            label: '禁酒令地下黑市',
+            label: '地下黑市',
             icon: '[黑市]',
-            desc: '私酒補給 彈藥 賭博 防彈插板',
+            desc: '私酒補給 彈藥 賭博',
             color: '#2ecc71'
           },
           {
-            x: 380,
+            x: 270,
             y: 150,
-            width: 140,
+            width: 130,
             height: 70,
-            type: run.zone % 2 === 0 ? 'shrine' : 'challenge',
-            label: run.zone % 2 === 0 ? '黑道血祭神龕' : '黑金挑戰金庫',
-            icon: run.zone % 2 === 0 ? '[血祭]' : '[金庫]',
-            desc: run.zone % 2 === 0 ? '獻祭20生命值換取傳奇神賜' : '高危雙倍黑金',
-            color: run.zone % 2 === 0 ? '#e040fb' : '#ffd700'
+            type: 'gunsmith',
+            label: '武器改裝台',
+            icon: '[改裝]',
+            desc: '核心機制變異模組',
+            color: '#00e5ff'
+          },
+          {
+            x: 445,
+            y: 150,
+            width: 130,
+            height: 70,
+            type: 'shrine',
+            label: '血祭禁忌神龕',
+            icon: '[血祭]',
+            desc: '浮士德惡魔契約',
+            color: '#ff1744'
           }
         ];
       } else {
@@ -718,18 +746,20 @@ export class CombatScene {
     for (let i = this.projectiles.list.length - 1; i >= 0; i--) {
       const p = this.projectiles.list[i];
 
-      // 地面範圍危害 (火海 / 毒霧) 節流閥結算 (每 0.35s 結算一次，絕非每幀狂跳)
+      // 1. 地面範圍危害 (火海 / 毒霧 / 冰面) 節流閥結算 (每 0.35s 結算一次)
       if (p.isAreaHazard) {
         p.tickTimer = (p.tickTimer ?? 0) - dt;
         if (p.tickTimer <= 0) {
           p.tickTimer = p.tickInterval || 0.35;
-          const tickDmg = p.damage * 0.35; // 規律跳傷
+          const tickDmg = p.damage * 0.35;
 
-          // 命中玩家 (TNT 燃燒焦土/毒霧場地傷害)
-          const pdx = this.player.x - p.x;
-          const pdy = this.player.y - p.y;
-          if (Math.sqrt(pdx * pdx + pdy * pdy) < this.player.radius + p.radius) {
-            this.player.takeDamage(tickDmg * 0.75, this.particles, p.x, p.y);
+          // 命中玩家 (僅限敵方危險沼澤，玩家自製火海/毒霧 100% 免除自傷)
+          if (!p.isPlayer) {
+            const pdx = this.player.x - p.x;
+            const pdy = this.player.y - p.y;
+            if (Math.sqrt(pdx * pdx + pdy * pdy) < this.player.radius + p.radius) {
+              this.player.takeDamage(tickDmg * 0.75, this.particles, p.x, p.y);
+            }
           }
 
           // 命中周圍小怪
@@ -766,7 +796,7 @@ export class CombatScene {
         continue;
       }
 
-      // 子彈擊中地圖掩體
+      // 2. 子彈擊中地圖掩體
       let hitObstacle = false;
       for (const obs of this.obstacles) {
         if (obs.isDead) continue;
@@ -784,6 +814,7 @@ export class CombatScene {
       }
       if (hitObstacle && p.pierce <= 0) continue;
 
+      // 3. 實體子彈傷害結算 (嚴格分離玩家彈幕與敵方彈幕)
       if (p.isPlayer) {
         // 玩家子彈擊中小怪
         for (const e of this.enemies) {
@@ -807,7 +838,7 @@ export class CombatScene {
               e.state = 'stagger';
             }
 
-            // v4 彈射跳彈 (Ricochet) 物理折射
+            // 彈射跳彈 (Ricochet) 物理折射
             if (p.ricochetCount && p.ricochetCount > 0) {
               p.ricochetCount--;
               let nearestOther: Enemy | null = null;
@@ -824,7 +855,7 @@ export class CombatScene {
                 const bounceAngle = Math.atan2(nearestOther.y - p.y, nearestOther.x - p.x);
                 p.vx = Math.cos(bounceAngle) * 650;
                 p.vy = Math.sin(bounceAngle) * 650;
-                p.damage *= 1.2;
+                p.damage *= 1.35;
                 p.color = '#00e5ff';
                 this.particles.spawnElectricSparks(p.x, p.y, 8);
                 continue;
@@ -858,13 +889,20 @@ export class CombatScene {
             }
           }
         }
+      } else {
         // 敵人子彈擊中主角
         const dx = this.player.x - p.x;
         const dy = this.player.y - p.y;
         if (Math.sqrt(dx * dx + dy * dy) < this.player.radius + p.radius) {
           const wasHit = this.player.takeDamage(p.damage, this.particles, p.x, p.y);
-          if (wasHit) this.camera.shake(6, 0.2);
-          this.projectiles.list.splice(i, 1);
+          if (wasHit) {
+            this.camera.shake(6, 0.2);
+            this.hitstopTimer = 0.04;
+          }
+          p.pierce--;
+          if (p.pierce <= 0) {
+            this.projectiles.list.splice(i, 1);
+          }
         }
       }
     }
@@ -1209,6 +1247,16 @@ export class CombatScene {
     // 禁酒令黑市商人介面
     if (this.merchantModal.isOpen) {
       this.merchantModal.render(ctx);
+    }
+
+    // 浮士德血祭神龕介面
+    if (this.altarModal.isOpen) {
+      this.altarModal.render(ctx);
+    }
+
+    // 軍火改裝台介面
+    if (this.gunsmithModal.isOpen) {
+      this.gunsmithModal.render(ctx);
     }
 
     // 暫停選單 (Esc / P)

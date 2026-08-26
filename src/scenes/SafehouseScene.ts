@@ -7,7 +7,7 @@ export class SafehouseScene {
   public selectedPrimaryWeaponId: number = 1;
   public selectedSecondaryWeaponId: number = 1;
   public hoveredWeaponId: number = 1;
-  public activeTab: 'combat' | 'bar' | 'bank' | 'shadow' = 'combat';
+  public activeTab: 'passport' | 'combat' | 'bar' | 'bank' | 'shadow' = 'passport';
 
   public init() {
     AudioManager.setMood('safehouse');
@@ -138,7 +138,7 @@ export class SafehouseScene {
         }
       }
 
-      // 點擊情報卡中的【設為主手】按鈕 (x: 215~350, y: L.cardBtnY ~ L.cardBtnY + 32)
+      // 點擊情報卡中的【設為主手】按鈕
       const curW = WEAPON_DATABASE[this.hoveredWeaponId] || WEAPON_DATABASE[1];
       const isCurUnlocked = GameState.unlockedWeapons.includes(curW.id);
       if (isCurUnlocked) {
@@ -147,7 +147,7 @@ export class SafehouseScene {
           AudioManager.playSlash();
           InputManager.haptic(20);
         }
-        // 點擊情報卡中的【設為副手】按鈕 (x: 360~495, y: L.cardBtnY ~ L.cardBtnY + 32)
+        // 點擊情報卡中的【設為副手】按鈕
         if (mx >= 360 && mx <= 495 && my >= L.cardBtnY && my <= L.cardBtnY + 32) {
           this.selectedSecondaryWeaponId = curW.id;
           AudioManager.playShot('revolver');
@@ -155,12 +155,13 @@ export class SafehouseScene {
         }
       }
 
-      // 四大部門標籤頁切換
+      // 五大部門標籤頁切換
       if (my >= L.tabY && my <= L.tabY + L.tabH) {
-        if (mx >= 26 && mx <= 146) { this.activeTab = 'combat'; AudioManager.playReload(); }
-        else if (mx >= 150 && mx <= 268) { this.activeTab = 'bar'; AudioManager.playReload(); }
-        else if (mx >= 272 && mx <= 388) { this.activeTab = 'bank'; AudioManager.playReload(); }
-        else if (mx >= 392 && mx <= 514) { this.activeTab = 'shadow'; AudioManager.playReload(); }
+        if (mx >= 26 && mx <= 120) { this.activeTab = 'passport'; AudioManager.playReload(); }
+        else if (mx >= 124 && mx <= 218) { this.activeTab = 'combat'; AudioManager.playReload(); }
+        else if (mx >= 222 && mx <= 316) { this.activeTab = 'bar'; AudioManager.playReload(); }
+        else if (mx >= 320 && mx <= 414) { this.activeTab = 'bank'; AudioManager.playReload(); }
+        else if (mx >= 418 && mx <= 514) { this.activeTab = 'shadow'; AudioManager.playReload(); }
       }
 
       // 處理各大部門養成點擊
@@ -183,7 +184,20 @@ export class SafehouseScene {
 
     const rowH = L.isTouch ? 22 : 24;
 
-    if (this.activeTab === 'combat') {
+    if (this.activeTab === 'passport') {
+      const passports = ['default', 'hitman', 'bootlegger', 'high_roller', 'brawler', 'cyber_tinkerer'] as const;
+      const pBoxH = L.isTouch ? 24 : 28;
+      for (let i = 0; i < passports.length; i++) {
+        const py = L.cocktailBaseY + i * (pBoxH + 6);
+        if (mx >= 35 && mx <= 505 && my >= py && my <= py + pBoxH) {
+          GameState.upgrades.selectedPassport = passports[i];
+          GameState.save();
+          AudioManager.playShot('revolver');
+          InputManager.haptic(25);
+          break;
+        }
+      }
+    } else if (this.activeTab === 'combat') {
       for (let i = 0; i < 5; i++) {
         const ry = L.upgRowBaseY + i * L.upgRowGap;
         if (mx >= 390 && mx <= 488 && my >= ry && my <= ry + rowH) {
@@ -418,12 +432,13 @@ export class SafehouseScene {
     ctx.strokeStyle = '#d4af37';
     ctx.strokeRect(26, L.upgBoxY, 488, L.upgBoxH);
 
-    // 四大標籤頁 Tab
+    // 五大標籤頁 Tab
     const tabs = [
-      { id: 'combat', name: '軍械精通', x: 26, w: 120 },
-      { id: 'bar', name: '特調酒吧', x: 148, w: 118 },
-      { id: 'bank', name: '黑市放貸', x: 268, w: 118 },
-      { id: 'shadow', name: '夜行身手', x: 388, w: 126 }
+      { id: 'passport' as const, name: '黑道執照', x: 26, w: 94 },
+      { id: 'combat' as const, name: '軍械精通', x: 124, w: 94 },
+      { id: 'bar' as const, name: '特調酒吧', x: 222, w: 94 },
+      { id: 'bank' as const, name: '黑市放貸', x: 320, w: 94 },
+      { id: 'shadow' as const, name: '夜行身手', x: 418, w: 96 }
     ];
 
     for (const t of tabs) {
@@ -481,7 +496,38 @@ export class SafehouseScene {
       ctx.fillText(isMax ? '已達上限' : '$' + cost + ' 升級', 439, y + (L.isTouch ? 15 : 16));
     };
 
-    if (this.activeTab === 'combat') {
+    if (this.activeTab === 'passport') {
+      const passports = [
+        { id: 'default', name: '🎩 家族首領 (Godfather)', desc: '經典全能均衡黑道教父，全屬性無短板。' },
+        { id: 'hitman', name: '🕶️ 冷血殺手 (Hitman)', desc: '翻滾無冷卻+暗影瞬移，背刺 350% 暴擊，但 MaxHP 鎖死 60。' },
+        { id: 'bootlegger', name: '🍸 私酒大亨 (Bootlegger)', desc: '自釀私酒壺隨機特調，30% 醉步閃避+醉拳火海。' },
+        { id: 'high_roller', name: '🎰 亡命賭徒 (High Roller)', desc: '$0 開局，50% 零元購免單 / 50% 雙倍，每殺 5 怪爆發 12 顆金幣。' },
+        { id: 'brawler', name: '🥊 地下拳王 (Brawler)', desc: '雙持指虎/鋼盾，正面 80 度格擋免傷，連擋 3 次打出 8 倍音速衝擊波！' },
+        { id: 'cyber_tinkerer', name: '🤖 機械狂徒 (Cyber Tinkerer)', desc: '開局常駐 2 架自律雷射僚機伴飛，翻滾自動佈設捕獸夾。' }
+      ];
+
+      const pBoxH = L.isTouch ? 24 : 28;
+      for (let i = 0; i < passports.length; i++) {
+        const p = passports[i];
+        const isSel = (GameState.upgrades.selectedPassport || 'default') === p.id;
+        const py = L.cocktailBaseY + i * (pBoxH + 6);
+
+        ctx.fillStyle = isSel ? '#241a2f' : '#14161f';
+        ctx.fillRect(35, py, 470, pBoxH);
+        ctx.strokeStyle = isSel ? '#00e5ff' : '#444';
+        ctx.lineWidth = isSel ? 2 : 1;
+        ctx.strokeRect(35, py, 470, pBoxH);
+
+        ctx.fillStyle = isSel ? '#00e5ff' : '#ffd700';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText((isSel ? '★ [已啟用] ' : '') + p.name, 42, py + (L.isTouch ? 11 : 12));
+
+        ctx.fillStyle = '#ccc';
+        ctx.font = '9.5px sans-serif';
+        ctx.fillText(p.desc, 42, py + (L.isTouch ? 20 : 23));
+      }
+    } else if (this.activeTab === 'combat') {
       const c1 = 120 * (GameState.upgrades.critDamageLevel + 1);
       renderUpgradeRow(L.upgRowBaseY, '致命暴擊傷害', 'Lv ' + GameState.upgrades.critDamageLevel + '/5 (暴傷 +' + (GameState.upgrades.critDamageLevel * 15) + '%)', c1, GameState.upgrades.critDamageLevel >= 5);
 

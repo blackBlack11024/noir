@@ -110,15 +110,39 @@ export class HUD {
     ctx.fillText('暫停', 499, 22);
     ctx.restore();
 
-    // 懸浮連擊指示 (Combo Counter)
+    // 懸浮連擊指示 (Combo Counter) 與 通緝熱度指示 (Heat Gauge)
+    ctx.save();
+    const heat = GameState.currentRun?.heatLevel || 0;
+    if (heat > 0) {
+      const heatColors = ['', '#ffd54f', '#ff9800', '#ff5722', '#f44336', '#d50000'];
+      ctx.fillStyle = heatColors[heat] || '#ff1744';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`🔥 通緝熱度 Lv.${heat}`, 14, 52);
+    }
+
+    const passport = GameState.currentRun?.passport;
+    if (passport && passport !== 'default') {
+      ctx.fillStyle = '#00e5ff';
+      ctx.font = 'bold 10.5px sans-serif';
+      ctx.textAlign = 'left';
+      const pNames: Record<string, string> = {
+        hitman: '🕶️ 冷血殺手',
+        bootlegger: '🍸 私酒大亨',
+        high_roller: '🎰 亡命賭徒',
+        brawler: '🥊 地下拳王',
+        cyber_tinkerer: '🤖 機械狂徒'
+      };
+      ctx.fillText(`🪪 ${pNames[passport] || passport}`, 115, 52);
+    }
+
     if (comboCount >= 2) {
-      ctx.save();
       ctx.fillStyle = rColor;
       ctx.font = 'bold italic 18px sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText(`${comboCount} HITS!`, 525, 60);
-      ctx.restore();
     }
+    ctx.restore();
 
     // 3. Boss 頂部雙層血條
     if (boss && !boss.isDead) {

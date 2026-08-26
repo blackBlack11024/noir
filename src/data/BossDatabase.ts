@@ -1,6 +1,27 @@
+export type BossMoveType = 
+  | 'slam' 
+  | 'laser' 
+  | 'bullet_hell' 
+  | 'rush' 
+  | 'spawn_minions' 
+  | 'smoke_teleport' 
+  | 'whirlwind'
+  | 'mortar_strike'
+  | 'rolling_barrel'
+  | 'bouncing_chips'
+  | 'scythe_boomerang'
+  | 'sound_wave'
+  | 'grapple_pull'
+  | 'trap_field'
+  | 'drone_swarm'
+  | 'ice_avalanche'
+  | 'acid_miasma'
+  | 'crystal_chandelier'
+  | 'apocalypse_combo';
+
 export interface BossMove {
   name: string;
-  type: 'slam' | 'laser' | 'bullet_hell' | 'rush' | 'spawn_minions' | 'smoke_teleport' | 'whirlwind';
+  type: BossMoveType;
   windupTime: number;
   damage: number;
   cooldown: number;

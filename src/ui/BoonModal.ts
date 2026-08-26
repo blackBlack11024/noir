@@ -131,7 +131,13 @@ export class BoonModal {
   }
 
   private tryReroll() {
-    if (GameState.currentRun && GameState.currentRun.cash >= 50) {
+    if (!GameState.currentRun) return;
+    if (GameState.currentRun.rerollTokens > 0) {
+      GameState.currentRun.rerollTokens--;
+      this.generateChoices();
+      AudioManager.playBoonCard();
+      InputManager.haptic(25);
+    } else if (GameState.currentRun.cash >= 50) {
       GameState.currentRun.cash -= 50;
       this.generateChoices();
       AudioManager.playBoonCard();
@@ -151,7 +157,14 @@ export class BoonModal {
     if (index >= 0 && index < this.choices.length) {
       const chosen = this.choices[index];
       if (GameState.currentRun) {
-        GameState.currentRun.activeBoons.push(chosen.id);
+        if (!GameState.currentRun.boonLevels) GameState.currentRun.boonLevels = {};
+        if (GameState.currentRun.activeBoons.includes(chosen.id)) {
+          const cur = GameState.currentRun.boonLevels[chosen.id] || 1;
+          GameState.currentRun.boonLevels[chosen.id] = Math.min(3, cur + 1);
+        } else {
+          GameState.currentRun.activeBoons.push(chosen.id);
+          GameState.currentRun.boonLevels[chosen.id] = 1;
+        }
       }
       AudioManager.playCash();
       InputManager.haptic(30);
@@ -172,16 +185,16 @@ export class BoonModal {
     ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(this.modalTitle, 270, 200);
+    ctx.fillText(this.modalTitle, 270, 195);
 
     ctx.fillStyle = '#888888';
     ctx.font = '12px sans-serif';
-    ctx.fillText('點擊卡片或按鍵盤數字 1 2 3 選取', 270, 226);
+    ctx.fillText('點擊卡片或按鍵盤數字 1 2 3 選取 / 升階突破', 270, 222);
 
     // 3 張塔羅風格黑金卡牌
     const cardW = 152;
-    const cardH = 360;
-    const startY = 260;
+    const cardH = 370;
+    const startY = 250;
 
     for (let i = 0; i < 3; i++) {
       const boon = this.choices[i];
@@ -189,6 +202,8 @@ export class BoonModal {
       const startX = 26 + i * 168;
       const isHover = this.hoveredIndex === i;
       const cardY = isHover ? startY - 8 : startY;
+      const isOwned = GameState.currentRun?.activeBoons.includes(boon.id);
+      const currentLevel = (GameState.currentRun?.boonLevels && GameState.currentRun.boonLevels[boon.id]) || 1;
 
       // 卡牌底色 (依稀有度呈現漸層質感)
       if (boon.rarity === 'legendary') {
@@ -203,7 +218,7 @@ export class BoonModal {
       ctx.fillRect(startX, cardY, cardW, cardH);
 
       const rarityColor = boon.rarity === 'legendary' ? '#ffd700' : (boon.rarity === 'epic' ? '#b388ff' : (boon.rarity === 'rare' ? '#64b5f6' : '#78909c'));
-      ctx.strokeStyle = isHover ? '#ffffff' : rarityColor;
+      ctx.strokeStyle = isHover ? '#ffffff' : (isOwned ? '#00e5ff' : rarityColor);
       ctx.lineWidth = isHover ? 3 : (boon.rarity === 'legendary' ? 2.8 : (boon.rarity === 'epic' ? 2 : 1.2));
       ctx.strokeRect(startX, cardY, cardW, cardH);
 
@@ -219,88 +234,93 @@ export class BoonModal {
         ctx.shadowBlur = 6;
       }
 
-      // 卡牌派系膠囊標籤
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.fillRect(startX + 12, cardY + 14, cardW - 24, 22);
-      ctx.fillStyle = rarityColor;
+      // 卡牌派系膠囊標籤 / 升階標籤
+      ctx.fillStyle = isOwned ? 'rgba(0, 229, 255, 0.2)' : 'rgba(255, 255, 255, 0.08)';
+      ctx.fillRect(startX + 12, cardY + 12, cardW - 24, 22);
+      ctx.fillStyle = isOwned ? '#00e5ff' : rarityColor;
       ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(boon.faction.toUpperCase(), startX + cardW / 2, cardY + 25);
+      const labelText = isOwned ? `★ 升階突破 (Lv.${currentLevel + 1})` : boon.faction.toUpperCase();
+      ctx.fillText(labelText, startX + cardW / 2, cardY + 23);
 
       // 卡牌名稱
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 15px sans-serif';
+      ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(boon.name, startX + cardW / 2, cardY + 62);
+      ctx.fillText(boon.name, startX + cardW / 2, cardY + 58);
 
-      // 稀有度標籤 (無任何特殊表情與符號)
+      // 稀有度標籤
       const rarityName = boon.rarity === 'legendary' ? '傳奇 質變神技' : (boon.rarity === 'epic' ? '史詩 核心強化' : (boon.rarity === 'rare' ? '稀有 戰術特技' : '普通 基礎增幅'));
       ctx.fillStyle = rarityColor;
       ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(rarityName, startX + cardW / 2, cardY + 86);
+      ctx.fillText(rarityName, startX + cardW / 2, cardY + 80);
 
       // 分隔金線
       ctx.strokeStyle = rarityColor;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(startX + 16, cardY + 102);
-      ctx.lineTo(startX + cardW - 16, cardY + 102);
+      ctx.moveTo(startX + 16, cardY + 94);
+      ctx.lineTo(startX + cardW - 16, cardY + 94);
       ctx.stroke();
 
       // 卡牌效果說明
       ctx.fillStyle = '#d5d8dc';
-      ctx.font = '12px sans-serif';
+      ctx.font = '11.5px sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      this.wrapText(ctx, boon.desc, startX + 14, cardY + 116, cardW - 28, 18);
+      const descText = isOwned ? `【突破】效果數值大幅翻倍強化！\n${boon.desc}` : boon.desc;
+      this.wrapText(ctx, descText, startX + 12, cardY + 104, cardW - 24, 16);
 
       // 選擇按鈕標籤
       ctx.fillStyle = isHover ? '#ffd700' : 'rgba(212, 175, 55, 0.15)';
-      ctx.fillRect(startX + 12, cardY + cardH - 46, cardW - 24, 32);
-      ctx.strokeStyle = '#d4af37';
+      ctx.fillRect(startX + 10, cardY + cardH - 44, cardW - 20, 32);
+      ctx.strokeStyle = isOwned ? '#00e5ff' : '#d4af37';
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(startX + 12, cardY + cardH - 46, cardW - 24, 32);
+      ctx.strokeRect(startX + 10, cardY + cardH - 44, cardW - 20, 32);
 
-      ctx.fillStyle = isHover ? '#000' : '#ffd700';
+      ctx.fillStyle = isHover ? '#000' : (isOwned ? '#00e5ff' : '#ffd700');
       ctx.font = 'bold 12px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('按 ' + (i + 1) + ' 選擇', startX + cardW / 2, cardY + cardH - 30);
+      const btnText = isOwned ? `按 ${i + 1} 升至 Lv.${currentLevel + 1}` : `按 ${i + 1} 獲取`;
+      ctx.fillText(btnText, startX + cardW / 2, cardY + cardH - 28);
 
       ctx.shadowBlur = 0;
     }
 
     // 底部戰術輔助按鈕 (重擲 / 放棄)
-    const canReroll = GameState.currentRun && GameState.currentRun.cash >= 50;
+    const tokens = GameState.currentRun?.rerollTokens || 0;
+    const canReroll = tokens > 0 || (GameState.currentRun && GameState.currentRun.cash >= 50);
     
     // 重擲按鈕
     ctx.fillStyle = canReroll ? '#1c1f2b' : '#141416';
-    ctx.fillRect(50, 700, 180, 42);
+    ctx.fillRect(50, 690, 190, 42);
     ctx.strokeStyle = canReroll ? '#ffd700' : '#444';
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(50, 700, 180, 42);
+    ctx.strokeRect(50, 690, 190, 42);
 
     ctx.fillStyle = canReroll ? '#ffd700' : '#666';
-    ctx.font = 'bold 13px sans-serif';
+    ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('重擲 ($50) [R]', 140, 721);
+    const rerollText = tokens > 0 ? `🎲 命運重骰 (${tokens}次免費) [R]` : `🎲 命運重骰 ($50) [R]`;
+    ctx.fillText(rerollText, 145, 711);
 
     // 放棄按鈕
     ctx.fillStyle = '#1c1f2b';
-    ctx.fillRect(310, 700, 180, 42);
+    ctx.fillRect(300, 690, 190, 42);
     ctx.strokeStyle = '#2ecc71';
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(310, 700, 180, 42);
+    ctx.strokeRect(300, 690, 190, 42);
 
     ctx.fillStyle = '#2ecc71';
-    ctx.font = 'bold 13px sans-serif';
+    ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('放棄領取 $80 [Space]', 400, 721);
+    ctx.fillText('放棄領取 $80 [Space]', 395, 711);
 
     ctx.restore();
   }

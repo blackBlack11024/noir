@@ -137,137 +137,217 @@ export class Boss {
     this.windupTimer = pick.windupTime * 0.75 * (this.isEnraged ? 0.60 : 1.0) * loopWindupMod;
     this.maxWindupTime = this.windupTimer;
 
-    // 建立地面危險紅光預警 (Telegraph)
-    if (pick.type === 'slam') {
-      this.activeTelegraph = { type: 'circle', x: this.x, y: this.y, angle: 0, radius: 120, length: 0, width: 0 };
-    } else if (pick.type === 'rush') {
-      this.activeTelegraph = { type: 'line', x: this.x, y: this.y, angle: this.facingAngle, radius: 0, length: 320, width: 60 };
-    } else if (pick.type === 'laser') {
-      this.activeTelegraph = { type: 'line', x: this.x, y: this.y, angle: this.facingAngle, radius: 0, length: 450, width: 24 };
-    } else if (pick.type === 'whirlwind' || pick.type === 'bullet_hell') {
-      this.activeTelegraph = { type: 'circle', x: this.x, y: this.y, angle: 0, radius: 150, length: 0, width: 0 };
+    // 建立地面危險紅光預警 (Precision Telegraphs)
+    if (pick.type === 'mortar_strike') {
+      this.activeTelegraph = { type: 'circle', x: player.x, y: player.y, angle: 0, radius: 95, length: 0, width: 0 };
+    } else if (pick.type === 'acid_miasma') {
+      this.activeTelegraph = { type: 'circle', x: player.x, y: player.y, angle: 0, radius: 110, length: 0, width: 0 };
+    } else if (pick.type === 'crystal_chandelier') {
+      this.activeTelegraph = { type: 'circle', x: 270, y: 460, angle: 0, radius: 180, length: 0, width: 0 };
+    } else if (pick.type === 'slam') {
+      this.activeTelegraph = { type: 'circle', x: this.x, y: this.y, angle: 0, radius: 130, length: 0, width: 0 };
+    } else if (pick.type === 'rush' || pick.type === 'rolling_barrel' || pick.type === 'ice_avalanche') {
+      this.activeTelegraph = { type: 'line', x: this.x, y: this.y, angle: this.facingAngle, radius: 0, length: 360, width: 65 };
+    } else if (pick.type === 'laser' || pick.type === 'grapple_pull') {
+      this.activeTelegraph = { type: 'line', x: this.x, y: this.y, angle: this.facingAngle, radius: 0, length: 550, width: 22 };
+    } else if (pick.type === 'whirlwind' || pick.type === 'sound_wave' || pick.type === 'bullet_hell' || pick.type === 'bouncing_chips' || pick.type === 'apocalypse_combo') {
+      this.activeTelegraph = { type: 'circle', x: this.x, y: this.y, angle: 0, radius: 160, length: 0, width: 0 };
     } else {
-      this.activeTelegraph = { type: 'circle', x: this.x, y: this.y, angle: 0, radius: 80, length: 0, width: 0 };
+      this.activeTelegraph = { type: 'circle', x: this.x, y: this.y, angle: 0, radius: 90, length: 0, width: 0 };
     }
   }
 
   private executeMove(move: BossMove, player: Player, angle: number, projectiles: ProjectileManager, particles: ParticleSystem) {
     AudioManager.playExplosion();
+    const telX = this.activeTelegraph?.x ?? this.x;
+    const telY = this.activeTelegraph?.y ?? this.y;
     this.activeTelegraph = null;
     const dmg = move.damage * (1 + (this.loopCount - 1) * 0.25);
 
-    if (move.type === 'rush') {
-      this.state = 'rush';
-      this.rushVx = Math.cos(angle) * 520;
-      this.rushVy = Math.sin(angle) * 520;
-      this.rushTimer = 0.45;
-      particles.spawnExplosion(this.x, this.y);
-      return;
-    }
-
-    const wid = this.weapon.id;
-    const isMelee = (this.weapon.category === 'melee' || (this.weapon.category === 'heavy' && this.weapon.maxAmmo === 0));
-
-    if (isMelee) {
-      if (move.type === 'slam') {
-        for (let i = 0; i < 10; i++) {
-          const a = (i / 10) * Math.PI * 2;
-          projectiles.spawnBullet(this.x, this.y, a, 260, dmg, false, this.weapon.color, true);
-        }
-        projectiles.spawnHazardArea(this.x, this.y, 60, 2.5, dmg * 0.4, 'rgba(255, 69, 0, 0.4)', 'burn');
+    switch (move.type) {
+      case 'rush': {
+        this.state = 'rush';
+        this.rushVx = Math.cos(angle) * 560;
+        this.rushVy = Math.sin(angle) * 560;
+        this.rushTimer = 0.5;
         particles.spawnExplosion(this.x, this.y);
-      } else {
-        for (let i = 0; i < 14; i++) {
-          const a = (i / 14) * Math.PI * 2;
-          projectiles.spawnBullet(this.x, this.y, a, 320, dmg * 0.7, false, this.weapon.color, true);
+        return;
+      }
+
+      case 'mortar_strike': { // 3 連天頂迫擊砲地毯轟炸
+        AudioManager.playShot('shotgun');
+        for (let i = 0; i < 3; i++) {
+          const offsetX = (Math.random() - 0.5) * 80;
+          const offsetY = (Math.random() - 0.5) * 80;
+          const targetX = Math.max(40, Math.min(500, telX + offsetX));
+          const targetY = Math.max(90, Math.min(870, telY + offsetY));
+          particles.spawnExplosion(targetX, targetY);
+          projectiles.spawnHazardArea(targetX, targetY, 65, 3.5, dmg * 0.35, 'rgba(255, 69, 0, 0.55)', 'burn', false);
+        }
+        particles.addDamageText(this.x, this.y - 25, '迫擊砲地毯轟炸！', '#ff4500', true);
+        break;
+      }
+
+      case 'laser': { // 穿甲狙擊死光
+        AudioManager.playShot('revolver');
+        projectiles.spawnBullet(this.x, this.y, angle, 980, dmg * 1.6, false, '#00ffff', true, 5, undefined, 'sniper_beam');
+        particles.spawnSmoke(this.x, this.y, 14, 'rgba(0, 255, 255, 0.6)');
+        break;
+      }
+
+      case 'rolling_barrel': { // 3 隻滾動炸藥私酒桶
+        AudioManager.playShot('shotgun');
+        for (let i = -1; i <= 1; i++) {
+          const bAngle = angle + i * 0.28;
+          projectiles.spawnBullet(this.x, this.y, bAngle, 280, dmg * 0.8, false, '#8b4513', true, 1, 'burn', 'dynamite', 2);
+        }
+        particles.addDamageText(this.x, this.y - 20, '滾動私酒炸藥桶！', '#d4af37', true);
+        break;
+      }
+
+      case 'bouncing_chips': { // 12 顆反彈 4 次的黃金籌碼彈
+        AudioManager.playCash();
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          projectiles.spawnBullet(this.x, this.y, a, 360, dmg * 0.45, false, '#ffd700', true, 1, undefined, 'bullet', 4);
+        }
+        particles.addDamageText(this.x, this.y - 20, '輪盤黃金籌碼雨！', '#ffd700', true);
+        break;
+      }
+
+      case 'scythe_boomerang': { // 雙 8 字血色迴旋雙飛鐮
+        projectiles.spawnBoomerang(this.x, this.y, angle - 0.4, 440, dmg * 1.3, '#ff1744', false);
+        projectiles.spawnBoomerang(this.x, this.y, angle + 0.4, 440, dmg * 1.3, '#ff1744', false);
+        particles.addDamageText(this.x, this.y - 20, '血色迴旋飛鐮！', '#ff1744', true);
+        break;
+      }
+
+      case 'sound_wave': { // 管風琴多層高頻紫色聲波環
+        for (let r = 0; r < 3; r++) {
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2 + (r * 0.3);
+            projectiles.spawnBullet(this.x, this.y, a, 240 + r * 50, dmg * 0.35, false, '#b388ff', false, 999, 'shock', 'sonic_wave');
+          }
+        }
+        particles.addDamageText(this.x, this.y - 25, '管風琴狂想音波！', '#b388ff', true);
+        break;
+      }
+
+      case 'grapple_pull': { // 鋼纜抓鉤猛拽
+        const pDist = Math.hypot(player.x - this.x, player.y - this.y);
+        if (pDist < 300) {
+          player.x = this.x + Math.cos(angle) * 45;
+          player.y = this.y + Math.sin(angle) * 45;
+          player.takeDamage(dmg * 0.6, particles, this.x, this.y);
+          particles.spawnElectricSparks(player.x, player.y, 16);
+          particles.addDamageText(player.x, player.y - 20, '鋼纜抓鉤抓取！', '#ff3333', true);
+          AudioManager.playHit();
+        }
+        break;
+      }
+
+      case 'trap_field': { // 佈設 3 個隱蔽捕獸夾
+        for (let i = 0; i < 3; i++) {
+          const tx = Math.max(50, Math.min(490, this.x + (Math.random() - 0.5) * 160));
+          const ty = Math.max(100, Math.min(850, this.y + (Math.random() - 0.5) * 160));
+          projectiles.spawnTrap(tx, ty, dmg * 0.8, false);
+        }
+        particles.addDamageText(this.x, this.y - 20, '連環捕獸夾！', '#8b4513', true);
+        break;
+      }
+
+      case 'drone_swarm': { // 召喚自爆發條無人機
+        this.pendingMinionSpawns += 2;
+        particles.spawnSmoke(this.x, this.y, 25, '#78909c');
+        particles.addDamageText(this.x, this.y - 20, '發條無人機出擊！', '#00e5ff', true);
+        break;
+      }
+
+      case 'ice_avalanche': { // 滾動巨大冰山碾壓
+        for (let i = -2; i <= 2; i++) {
+          projectiles.spawnBullet(this.x, this.y, angle + i * 0.15, 340, dmg * 0.45, false, '#00e5ff', true, 2, 'freeze', 'frost');
+        }
+        projectiles.spawnHazardArea(this.x + Math.cos(angle) * 80, this.y + Math.sin(angle) * 80, 75, 4.0, dmg * 0.3, 'rgba(0, 229, 255, 0.45)', 'freeze', false);
+        particles.addDamageText(this.x, this.y - 20, '極寒冰山碾壓！', '#00e5ff', true);
+        break;
+      }
+
+      case 'acid_miasma': { // 擴散型腐蝕毒霧沼澤
+        projectiles.spawnHazardArea(telX, telY, 95, 4.5, dmg * 0.4, 'rgba(46, 204, 113, 0.5)', 'bleed', false);
+        particles.spawnSmoke(telX, telY, 30, '#2e7d32');
+        particles.addDamageText(this.x, this.y - 20, '腐蝕生化毒瘴！', '#2ecc71', true);
+        break;
+      }
+
+      case 'crystal_chandelier': { // 天花板巨型水晶吊燈砸落
+        particles.spawnExplosion(270, 460);
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * Math.PI * 2;
+          projectiles.spawnBullet(270, 460, a, 380, dmg * 0.6, false, '#e0f7fa', true, 1, undefined, 'bullet');
+        }
+        projectiles.spawnHazardArea(270, 460, 110, 4.0, dmg * 0.4, 'rgba(224, 247, 250, 0.4)', 'bleed', false);
+        particles.addDamageText(270, 430, '💎 水晶吊燈砸落！', '#e040fb', true);
+        break;
+      }
+
+      case 'apocalypse_combo': { // 始祖夜鶯終極輪迴全解放
+        particles.spawnExplosion(this.x, this.y);
+        for (let i = 0; i < 28; i++) {
+          const a = (i / 28) * Math.PI * 2;
+          projectiles.spawnBullet(this.x, this.y, a, 420, dmg * 0.55, false, '#ffd700', true, 2, undefined, 'bullet', 2);
+        }
+        projectiles.spawnBoomerang(this.x, this.y, angle, 460, dmg * 1.5, '#ff1744', false);
+        projectiles.spawnBullet(this.x, this.y, angle, 1100, dmg * 2.0, false, '#00ffff', true, 8, undefined, 'sniper_beam');
+        particles.addDamageText(this.x, this.y - 30, '🌟 暗夜終極輪迴解放！', '#ffd700', true);
+        break;
+      }
+
+      case 'slam': {
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          projectiles.spawnBullet(this.x, this.y, a, 280, dmg * 0.55, false, this.weapon.color, true);
+        }
+        projectiles.spawnHazardArea(this.x, this.y, 70, 2.5, dmg * 0.35, 'rgba(255, 69, 0, 0.45)', 'burn', false);
+        particles.spawnExplosion(this.x, this.y);
+        break;
+      }
+
+      case 'whirlwind': {
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * Math.PI * 2;
+          projectiles.spawnBullet(this.x, this.y, a, 340, dmg * 0.6, false, this.weapon.color, true);
         }
         particles.spawnExplosion(this.x, this.y);
+        break;
       }
-    } else {
-      switch (wid) {
-        case 4: { // 雙管霰彈
-          AudioManager.playShot('shotgun');
-          for (let i = -4; i <= 4; i++) {
-            projectiles.spawnBullet(this.x, this.y, angle + i * 0.12, 420, dmg * 0.25, false, '#ff5722', true, 1, undefined, 'shotgun_pellet');
-          }
-          break;
-        }
-        case 6: { // 化學噴火槍
-          AudioManager.playShot('shotgun');
-          for (let i = -3; i <= 3; i++) {
-            projectiles.spawnBullet(this.x, this.y, angle + i * 0.08, 380, dmg * 0.3, false, '#ff3d00', true, 1, 'burn', 'flame');
-          }
-          projectiles.spawnHazardArea(this.x + Math.cos(angle) * 70, this.y + Math.sin(angle) * 70, 45, 2.5, dmg * 0.35, 'rgba(255, 69, 0, 0.5)', 'burn');
-          break;
-        }
-        case 13: { // 栓動狙擊步槍
-          AudioManager.playShot('revolver');
-          projectiles.spawnBullet(this.x, this.y, angle, 900, dmg * 1.5, false, '#00ffff', true, 3, undefined, 'sniper_beam');
-          particles.spawnSmoke(this.x, this.y, 10, 'rgba(0, 255, 255, 0.5)');
-          break;
-        }
-        case 18: { // 冷凍噴槍
-          AudioManager.playShot('shotgun');
-          for (let i = -3; i <= 3; i++) {
-            projectiles.spawnBullet(this.x, this.y, angle + i * 0.1, 400, dmg * 0.3, false, '#00e5ff', true, 1, 'freeze', 'frost');
-          }
-          break;
-        }
-        case 19: { // 加特林機槍
-          AudioManager.playShot('tommy');
-          for (let i = -2; i <= 2; i++) {
-            projectiles.spawnBullet(this.x, this.y, angle + i * 0.08, 520, dmg * 0.35, false, '#90a4ae', false, 1, undefined, 'bullet');
-          }
-          break;
-        }
-        case 22: { // 毒氣榴彈
-          AudioManager.playShot('shotgun');
-          projectiles.spawnBullet(this.x, this.y, angle, 350, dmg, false, '#00e676', true, 1, 'bleed', 'grenade');
-          projectiles.spawnHazardArea(this.x + Math.cos(angle) * 80, this.y + Math.sin(angle) * 80, 50, 3.0, dmg * 0.3, 'rgba(46, 204, 113, 0.45)', 'bleed');
-          break;
-        }
-        case 12: { // 炸藥桶與燃燒瓶
-          AudioManager.playShot('shotgun');
-          projectiles.spawnBullet(this.x, this.y, angle, 320, dmg, false, '#ff1744', true, 1, 'burn', 'dynamite');
-          break;
-        }
-        case 8:
-        case 20: { // 湯姆森 / 雙持短衝
-          AudioManager.playShot('tommy');
-          for (let i = -2; i <= 2; i++) {
-            projectiles.spawnBullet(this.x, this.y, angle + i * 0.1, 500, dmg * 0.4, false, this.weapon.color, false, 1, undefined, 'bullet');
-          }
-          break;
-        }
-        default: { // 左輪與其他槍械
-          AudioManager.playShot('revolver');
-          for (let i = -1; i <= 1; i++) {
-            projectiles.spawnBullet(this.x, this.y, angle + i * 0.08, 560, dmg * 0.45, false, this.weapon.color, true, 1, undefined, 'bullet');
-          }
-          break;
-        }
-      }
-    }
 
-    if (move.type === 'bullet_hell') {
-      const count = this.isEnraged ? 24 : 16;
-      for (let i = 0; i < count; i++) {
-        const a = (i / count) * Math.PI * 2;
-        projectiles.spawnBullet(this.x, this.y, a, 260, dmg * 0.5, false, this.weapon.color);
+      case 'spawn_minions': {
+        this.pendingMinionSpawns += this.isEnraged ? 3 : 2;
+        particles.spawnSmoke(this.x, this.y, 30);
+        particles.addDamageText(this.x, this.y - 20, '呼叫黑道打手', '#ffd700', true);
+        break;
       }
-    } else if (move.type === 'spawn_minions') {
-      this.pendingMinionSpawns += this.isEnraged ? 3 : 2;
-      particles.spawnSmoke(this.x, this.y, 30);
-      particles.addDamageText(this.x, this.y, '呼叫黑道打手', '#ffd700', true);
-    } else if (move.type === 'smoke_teleport') {
-      particles.spawnSmoke(this.x, this.y, 35);
-      const tpAngle = Math.random() * Math.PI * 2;
-      this.x = Math.max(60, Math.min(480, player.x + Math.cos(tpAngle) * 140));
-      this.y = Math.max(120, Math.min(820, player.y + Math.sin(tpAngle) * 140));
-      particles.spawnSmoke(this.x, this.y, 35);
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        projectiles.spawnBullet(this.x, this.y, a, 280, dmg * 0.6, false, '#8e44ad');
+
+      case 'smoke_teleport': {
+        particles.spawnSmoke(this.x, this.y, 35);
+        const tpAngle = Math.random() * Math.PI * 2;
+        this.x = Math.max(60, Math.min(480, player.x + Math.cos(tpAngle) * 130));
+        this.y = Math.max(120, Math.min(820, player.y + Math.sin(tpAngle) * 130));
+        particles.spawnSmoke(this.x, this.y, 35);
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          projectiles.spawnBullet(this.x, this.y, a, 300, dmg * 0.5, false, '#8e44ad');
+        }
+        break;
+      }
+
+      default: { // bullet_hell
+        const count = this.isEnraged ? 24 : 16;
+        for (let i = 0; i < count; i++) {
+          const a = (i / count) * Math.PI * 2;
+          projectiles.spawnBullet(this.x, this.y, a, 280, dmg * 0.5, false, this.weapon.color);
+        }
+        break;
       }
     }
 
@@ -279,24 +359,39 @@ export class Boss {
     this.hitFlashTimer = 0.05;
     if (this.armor > 0) {
       this.armor -= amount;
+      particles.spawnElectricSparks(this.x, this.y, 6);
       AudioManager.playHit();
-      particles.addDamageText(this.x, this.y, '破甲 ' + Math.round(amount), '#4682b4');
+      if (this.armor <= 0) {
+        this.armor = 0;
+        particles.addDamageText(this.x, this.y - 30, '護甲破碎！', '#00e5ff', true);
+        AudioManager.playExplosion();
+      }
       return;
     }
 
     this.hp -= amount;
+    particles.spawnBlood(this.x, this.y, 5);
     AudioManager.playHit();
-    particles.spawnBlood(this.x, this.y, 6);
-    particles.addDamageText(this.x, this.y, Math.round(amount).toString(), '#ffcc00', true);
 
-    if (this.hp <= 0) {
+    if (this.hp <= this.maxHp * 0.45 && !this.isEnraged) {
+      this.isEnraged = true;
+      this.speed *= 1.35;
+      particles.addDamageText(this.x, this.y - 30, '狂暴怒吼！', '#ff1744', true);
+      AudioManager.playExplosion();
+    }
+
+    if (this.hp <= 0 && !this.isDead) {
       this.isDead = true;
+      this.hp = 0;
+      AudioManager.playExplosion();
+      AudioManager.playCash();
       particles.spawnExplosion(this.x, this.y);
+      particles.spawnCashSparkle(this.x, this.y);
     }
   }
 
   private clampPosition() {
-    this.x = Math.max(40, Math.min(500, this.x));
+    this.x = Math.max(50, Math.min(490, this.x));
     this.y = Math.max(80, Math.min(880, this.y));
   }
 
@@ -310,23 +405,25 @@ export class Boss {
       ctx.save();
       const progress = 1 - Math.max(0, this.windupTimer / (this.maxWindupTime || 1));
       const tel = this.activeTelegraph;
+      const telX = (tel.x !== undefined ? tel.x : this.x) + offsetX;
+      const telY = (tel.y !== undefined ? tel.y : this.y) + offsetY;
 
       if (tel.type === 'circle') {
         ctx.fillStyle = 'rgba(255, 30, 30, 0.18)';
         ctx.beginPath();
-        ctx.arc(px, py, tel.radius, 0, Math.PI * 2);
+        ctx.arc(telX, telY, tel.radius, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.strokeStyle = '#ff3333';
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.35)';
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.38)';
         ctx.beginPath();
-        ctx.arc(px, py, tel.radius * progress, 0, Math.PI * 2);
+        ctx.arc(telX, telY, tel.radius * progress, 0, Math.PI * 2);
         ctx.fill();
       } else if (tel.type === 'line') {
-        ctx.translate(px, py);
+        ctx.translate(telX, telY);
         ctx.rotate(tel.angle);
 
         ctx.fillStyle = 'rgba(255, 30, 30, 0.15)';

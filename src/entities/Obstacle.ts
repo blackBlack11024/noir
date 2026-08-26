@@ -74,20 +74,7 @@ export class Obstacle {
       AudioManager.playExplosion();
       particles.spawnExplosion(this.x, this.y);
 
-      // TNT 瞬間近距離劇烈爆炸對玩家造成傷害與擊退
-      if (player && !player.isDead) {
-        const pdx = player.x - this.x;
-        const pdy = player.y - this.y;
-        const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
-        if (pdist < 92) {
-          player.takeDamage(32, particles);
-          const safeDist = Math.max(1, pdist);
-          player.x += (pdx / safeDist) * 45;
-          player.y += (pdy / safeDist) * 45;
-        }
-      }
-
-      // 產生高傷火海與爆炸
+      // 產生高傷火海與爆炸 (對敵人與掩體造成環境傷害，不自傷玩家)
       projectiles.spawnHazardArea(this.x, this.y, 85, 3.0, 50, 'rgba(255, 69, 0, 0.65)', 'burn');
     } else if (this.type === 'sandbag') {
       AudioManager.playHit();
