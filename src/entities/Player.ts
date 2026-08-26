@@ -102,8 +102,7 @@ export class Player {
     this.resetFromState();
   }
 
-  public resetFromState() {
-    this.activeSummonedDrones = 0;
+  public resetTransientTimers() {
     this.goldFrenzyTimer = 0;
     this.berserkTimer = 0;
     this.stealthTimer = 0;
@@ -118,16 +117,37 @@ export class Player {
     this.shotCounter = 0;
     this.shadowClones = [];
     this.iFrames = 0;
-    this.hasShield = false;
-    this.hasUsedIceRevive = false;
-    this.hasUsedSafehouseRevive = false;
     this.meleeComboStep = 0;
     this.meleeComboResetTimer = 0;
     this.stillTimer = 0;
     this.damageReduction = 0;
     this.damageMult = 1.0;
     this.speedMult = 1.0;
+    this.isDodging = false;
+    this.isChargingHeavy = false;
+    this.chargeTimer = 0;
+    this.meleeSwingTimer = 0;
+  }
 
+  public resetForNewRun() {
+    this.activeSummonedDrones = 0;
+    if (GameState.currentRun) GameState.currentRun.activeSummonedDrones = 0;
+    this.hasUsedIceRevive = false;
+    this.hasUsedSafehouseRevive = false;
+    this.resetTransientTimers();
+    this.resetFromState();
+  }
+
+  public resetForNewRoom() {
+    // 局內各房間過關後保留已召喚的無人機與常駐狀態
+    if (GameState.currentRun && GameState.currentRun.activeSummonedDrones !== undefined) {
+      this.activeSummonedDrones = GameState.currentRun.activeSummonedDrones;
+    }
+    this.resetTransientTimers();
+    this.resetFromState();
+  }
+
+  public resetFromState() {
     if (GameState.currentRun) {
       this.hp = GameState.currentRun.hp;
       this.maxHp = GameState.currentRun.maxHp;
@@ -136,6 +156,9 @@ export class Player {
       this.currentSlot = GameState.currentRun.currentWeaponSlot;
       this.primaryAmmo = GameState.currentRun.primaryAmmo;
       this.secondaryAmmo = GameState.currentRun.secondaryAmmo;
+      if (GameState.currentRun.activeSummonedDrones !== undefined) {
+        this.activeSummonedDrones = GameState.currentRun.activeSummonedDrones;
+      }
 
       // v6 電磁護盾
       if (GameState.currentRun.activeBoons.includes('v6')) {

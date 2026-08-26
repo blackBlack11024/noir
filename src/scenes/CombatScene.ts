@@ -117,7 +117,12 @@ export class CombatScene {
     const run = GameState.currentRun;
     if (!run) return;
 
-    this.player.resetFromState();
+    const isNewRun = (run.roomsCleared === 0 && run.roomIndex === 1 && run.zone === 1);
+    if (isNewRun) {
+      this.player.resetForNewRun();
+    } else {
+      this.player.resetForNewRoom();
+    }
 
     // 固定每關開局出生點 (戰場下方入口中央 270, 820，面朝上方)
     this.player.x = 270;

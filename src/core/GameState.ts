@@ -76,6 +76,7 @@ export interface RunState {
   rerollTokens: number;
   cursePacts: string[];
   weaponMutations: { [weaponId: number]: string };
+  activeSummonedDrones?: number; // 局內召喚的常駐伴飛無人機數量（關卡間保留）
   heatLevel: number; // 0 ~ 5
   heatScore: number;
   styleScore: number;
@@ -202,6 +203,7 @@ class GameStateManager {
       rerollTokens: 3,
       cursePacts: [],
       weaponMutations: {},
+      activeSummonedDrones: 0,
       heatLevel: 0,
       heatScore: 0,
       styleScore: 0,
