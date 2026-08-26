@@ -1258,10 +1258,10 @@ export class Player {
         projectiles.spawnBullet(spawnX, spawnY, this.angle, 720, damage, true, '#d4af37', isCrit, 2, statusEffect, 'crossbow_bolt');
         break;
       }
-      case 12: { // 12. 炸藥桶與燃燒瓶：投擲旋轉引燃炸藥棒
+      case 12: { // 12. 炸藥桶與燃燒瓶：投擲旋轉引燃炸藥棒（命中引發範圍大爆炸）
         AudioManager.playShot('shotgun');
         InputManager.haptic(30);
-        projectiles.spawnBullet(spawnX, spawnY, this.angle, 350, damage, true, '#ff1744', isCrit, 1, 'burn', 'dynamite');
+        projectiles.spawnExplosiveBarrel(spawnX, spawnY, this.angle, 380, damage, 110, true, false);
         break;
       }
       case 13: { // 13. 栓動狙擊步槍：全屏超音速死光雷射
@@ -1455,8 +1455,10 @@ export class Player {
           projectiles.spawnTrap(spawnX + Math.cos(this.angle) * 80, spawnY + Math.sin(this.angle) * 80);
           break;
         }
-        case 12: { // 炸藥：拋出大號燃燒海
-          projectiles.spawnHazardArea(spawnX + Math.cos(this.angle) * 80, spawnY + Math.sin(this.angle) * 80, 60, 3.5, 40, 'rgba(255, 69, 0, 0.6)', 'burn');
+        case 12: { // 12. 炸藥桶：滾動投擲巨型高爆酒桶（160px 超大範圍自爆 + 燃燒海）
+          AudioManager.playShot('shotgun');
+          AudioManager.playExplosion();
+          projectiles.spawnExplosiveBarrel(spawnX, spawnY, this.angle, 420, damage * 1.75, 160, true, true);
           break;
         }
         case 13: { // 狙擊：死線貫穿死光

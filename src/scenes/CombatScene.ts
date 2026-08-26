@@ -812,6 +812,27 @@ export class CombatScene {
           obs.takeDamage(p.damage, this.particles, this.projectiles, this.player);
           p.pierce--;
           hitObstacle = true;
+
+          // 炸藥桶/爆裂彈撞牆觸發範圍劇烈爆炸
+          if (p.isExplosive || p.visualType === 'dynamite') {
+            this.particles.spawnExplosion(p.x, p.y);
+            this.camera.shake(6.5, 0.16);
+            AudioManager.playExplosion();
+            const blast = p.blastRadius || 120;
+            for (const e of this.enemies) {
+              if (e.isDead) continue;
+              if (Math.hypot(e.x - p.x, e.y - p.y) <= blast) {
+                e.takeDamage(p.damage * 0.85, this.particles, 'burn', true);
+              }
+            }
+            if (this.boss && !this.boss.isDead && Math.hypot(this.boss.x - p.x, this.boss.y - p.y) <= blast) {
+              this.boss.takeDamage(p.damage * 0.85, this.particles);
+            }
+            if (p.spawnFireHazard) {
+              this.projectiles.spawnHazardArea(p.x, p.y, blast * 0.65, 3.5, 45, 'rgba(255, 69, 0, 0.6)', 'burn', p.isPlayer);
+            }
+          }
+
           if (p.pierce <= 0) {
             this.projectiles.list.splice(i, 1);
             break;
@@ -842,6 +863,30 @@ export class CombatScene {
             if (p.isTrap) {
               e.staggerTimer = 2.5;
               e.state = 'stagger';
+            }
+
+            // 炸藥桶/爆裂彈引發範圍大爆炸 (AOE Explosion)
+            if (p.isExplosive || p.visualType === 'dynamite') {
+              this.particles.spawnExplosion(p.x, p.y);
+              this.particles.spawnElectricSparks(p.x, p.y, 20);
+              this.camera.shake(7.5, 0.2);
+              AudioManager.playExplosion();
+              const blast = p.blastRadius || 125;
+
+              // 範圍濺射傷害全場周圍敵人與 BOSS
+              for (const other of this.enemies) {
+                if (other !== e && !other.isDead && Math.hypot(other.x - p.x, other.y - p.y) <= blast) {
+                  const splashDmg = other.takeDamage(p.damage * 0.9, this.particles, 'burn', true);
+                  if (GameState.currentRun) GameState.currentRun.damageDealt += splashDmg;
+                }
+              }
+              if (this.boss && !this.boss.isDead && Math.hypot(this.boss.x - p.x, this.boss.y - p.y) <= blast) {
+                this.boss.takeDamage(p.damage * 0.9, this.particles);
+                if (GameState.currentRun) GameState.currentRun.damageDealt += p.damage * 0.9;
+              }
+              if (p.spawnFireHazard) {
+                this.projectiles.spawnHazardArea(p.x, p.y, blast * 0.65, 3.5, 45, 'rgba(255, 69, 0, 0.6)', 'burn', true);
+              }
             }
 
             // 神風自殺無人機引發連鎖大自爆與 AOE 濺射
@@ -896,7 +941,23 @@ export class CombatScene {
           if (Math.sqrt(dx * dx + dy * dy) < this.boss.radius + p.radius) {
             this.boss.takeDamage(p.damage, this.particles);
             if (GameState.currentRun) GameState.currentRun.damageDealt += p.damage;
-            if (p.isHomingDrone) {
+            
+            // 炸藥桶命中 Boss 觸發大範圍爆破
+            if (p.isExplosive || p.visualType === 'dynamite') {
+              this.particles.spawnExplosion(p.x, p.y);
+              this.particles.spawnElectricSparks(p.x, p.y, 20);
+              this.camera.shake(7.5, 0.2);
+              AudioManager.playExplosion();
+              const blast = p.blastRadius || 125;
+              for (const e of this.enemies) {
+                if (!e.isDead && Math.hypot(e.x - p.x, e.y - p.y) <= blast) {
+                  e.takeDamage(p.damage * 0.9, this.particles, 'burn', true);
+                }
+              }
+              if (p.spawnFireHazard) {
+                this.projectiles.spawnHazardArea(p.x, p.y, blast * 0.65, 3.5, 45, 'rgba(255, 69, 0, 0.6)', 'burn', true);
+              }
+            } else if (p.isHomingDrone) {
               this.particles.spawnExplosion(p.x, p.y);
               this.particles.spawnElectricSparks(p.x, p.y, 25);
               this.camera.shake(7.5, 0.2);

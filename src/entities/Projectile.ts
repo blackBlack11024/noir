@@ -35,6 +35,9 @@ export interface Projectile {
   isNuke?: boolean;       // 輪盤毀滅核彈
   isHomingDrone?: boolean;// 神風自律追蹤自殺無人機
   targetEnemy?: any;      // 鎖定追蹤目標
+  isExplosive?: boolean;  // 範圍爆炸彈（炸藥桶/燃燒瓶/手雷）
+  blastRadius?: number;   // 爆炸半徑 (px)
+  spawnFireHazard?: boolean; // 爆炸後是否在地面殘留燃燒火海
   ricochetCount?: number; // 彈射跳彈剩餘次數
   rotation?: number;      // 旋轉角度
   rotSpeed?: number;
@@ -497,6 +500,30 @@ export class ProjectileManager {
       isHomingDrone: true,
       targetEnemy: target,
       statusEffect: 'shock'
+    });
+  }
+
+  public spawnExplosiveBarrel(x: number, y: number, angle: number, speed: number, damage: number, blastRadius: number = 130, isPlayer: boolean = true, isHeavy: boolean = false) {
+    this.list.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      radius: isHeavy ? 18 : 12,
+      damage,
+      isPlayer,
+      color: '#ff4500',
+      life: 0.9,
+      maxLife: 0.9,
+      pierce: 1,
+      isHeavy,
+      isExplosive: true,
+      blastRadius,
+      spawnFireHazard: true,
+      visualType: 'dynamite',
+      rotation: 0,
+      rotSpeed: 10,
+      statusEffect: 'burn'
     });
   }
 }
