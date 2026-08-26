@@ -644,62 +644,11 @@ export class CombatScene {
         }
       }
 
-      // 生成戰術分支傳送門 (若非 BOSS 房，生成黑市、改裝台、血祭神龕三向抉擇門)
-      if (run.roomIndex < 4) {
-        this.roomGates = [
-          {
-            x: 95,
-            y: 150,
-            width: 130,
-            height: 70,
-            type: 'merchant',
-            label: '地下黑市',
-            icon: '[黑市]',
-            desc: '私酒補給 彈藥 賭博',
-            color: '#2ecc71'
-          },
-          {
-            x: 270,
-            y: 150,
-            width: 130,
-            height: 70,
-            type: 'gunsmith',
-            label: '武器改裝台',
-            icon: '[改裝]',
-            desc: '核心機制變異模組',
-            color: '#00e5ff'
-          },
-          {
-            x: 445,
-            y: 150,
-            width: 130,
-            height: 70,
-            type: 'shrine',
-            label: '血祭禁忌神龕',
-            icon: '[血祭]',
-            desc: '浮士德惡魔契約',
-            color: '#ff1744'
-          }
-        ];
-      } else {
-        // BOSS 戰通關大門
-        this.roomGates = [
-          {
-            x: 270,
-            y: 150,
-            width: 190,
-            height: 75,
-            type: 'normal',
-            label: '進駐下個教父街區',
-            icon: '[前進]',
-            desc: '踏入下個犯罪領地',
-            color: '#ffd700'
-          }
-        ];
-      }
+      // 通關立即觸發隨機 3 選 1 抽卡結算 (包含神賜天賦/升階、武器改裝、血祭契約、黑市軍備補給)
+      const isBoss = (run.roomIndex === 4);
+      this.boonModal.open(isBoss, isBoss ? '👑 擊敗頭目·傳奇教父黑道神賜' : '🎲 通關結算·命運三選一');
+      this.roomGates = [];
     }
-
-    this.boonModal.open();
   }
 
   private onEnemyKilled(e: Enemy) {

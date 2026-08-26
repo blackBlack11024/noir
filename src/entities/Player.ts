@@ -103,6 +103,31 @@ export class Player {
   }
 
   public resetFromState() {
+    this.activeSummonedDrones = 0;
+    this.goldFrenzyTimer = 0;
+    this.berserkTimer = 0;
+    this.stealthTimer = 0;
+    this.shieldHoldTimer = 0;
+    this.isHoldingShield = false;
+    this.shieldRushTimer = 0;
+    this.perfectDodgeBuffTimer = 0;
+    this.ironFortressTimer = 0;
+    this.quickSwapBuffTimer = 0;
+    this.bulletTimeTimer = 0;
+    this.drunkenFrenzyTimer = 0;
+    this.shotCounter = 0;
+    this.shadowClones = [];
+    this.iFrames = 0;
+    this.hasShield = false;
+    this.hasUsedIceRevive = false;
+    this.hasUsedSafehouseRevive = false;
+    this.meleeComboStep = 0;
+    this.meleeComboResetTimer = 0;
+    this.stillTimer = 0;
+    this.damageReduction = 0;
+    this.damageMult = 1.0;
+    this.speedMult = 1.0;
+
     if (GameState.currentRun) {
       this.hp = GameState.currentRun.hp;
       this.maxHp = GameState.currentRun.maxHp;
