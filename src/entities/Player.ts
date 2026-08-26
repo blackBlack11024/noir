@@ -1576,6 +1576,44 @@ export class Player {
         return;
       }
 
+      if (weapon.id === 11) {
+        // 11. 格鬥精鋼指虎重攻擊：崩拳碎骨破 (金剛重拳爆發 + 震盪衝擊波)
+        AudioManager.playCritHit();
+        InputManager.haptic([35, 70]);
+
+        this.meleeSwingTimer = 0.25;
+        this.meleeSwingDuration = 0.25;
+        this.meleeBladeLength = 80;
+        this.meleeSwingAngleStart = this.angle - 0.35;
+        this.meleeSwingAngleEnd = this.angle + 0.35;
+
+        this.meleeLungeVx = Math.cos(this.angle) * 550;
+        this.meleeLungeVy = Math.sin(this.angle) * 550;
+
+        const punchX = this.x + Math.cos(this.angle) * 35;
+        const punchY = this.y + Math.sin(this.angle) * 35;
+        particles.spawnExplosion(punchX, punchY);
+        particles.spawnElectricSparks(punchX, punchY, 12);
+        particles.addDamageText(this.x, this.y - 25, '💥 崩拳碎骨破！', '#ffd700', true);
+
+        for (const e of enemies) {
+          if (e.isDead) continue;
+          const edist = Math.hypot(e.x - this.x, e.y - this.y);
+          if (edist < 105) {
+            e.takeDamage(damage * 2.2, particles, 'shock', true, this.angle);
+            e.knockbackVx = Math.cos(this.angle) * 850;
+            e.knockbackVy = Math.sin(this.angle) * 850;
+            e.staggerTimer = 1.2;
+            e.state = 'stagger';
+          }
+        }
+
+        if (boss && !boss.isDead && Math.hypot(boss.x - this.x, boss.y - this.y) < 120) {
+          boss.takeDamage(damage * 2.2, particles);
+        }
+        return;
+      }
+
       if (weapon.id === 14) {
         // 14. 荊棘毒藤鋼鞭重攻擊：千頭毒藤·噬血萬鞭穿刺 (伸出 8 條墨綠鋼鞭穿刺前方 + 噬血汲取 HP，純近戰無弩矢)
         AudioManager.playSlash();
@@ -1583,6 +1621,7 @@ export class Player {
         InputManager.haptic([40, 80]);
 
         this.meleeSwingTimer = 0.35;
+        this.meleeSwingDuration = 0.35;
         this.meleeBladeLength = 185;
         this.meleeSwingAngleStart = this.angle - 1.2;
         this.meleeSwingAngleEnd = this.angle + 1.2;
@@ -1620,6 +1659,7 @@ export class Player {
       }
 
       this.meleeSwingTimer = 0.28;
+      this.meleeSwingDuration = 0.28;
       this.meleeBladeLength = 95;
       this.meleeSwingAngleStart = this.angle - Math.PI;
       this.meleeSwingAngleEnd = this.angle + Math.PI;
@@ -1894,6 +1934,7 @@ export class Player {
       case 11: { // 格鬥精鋼指虎: 升龍天翔破 (突進烈焰上勾拳)
         this.iFrames = 0.5;
         this.meleeSwingTimer = 0.35;
+        this.meleeSwingDuration = 0.35;
         this.meleeBladeLength = 80;
         this.meleeSwingAngleStart = this.angle - 0.4;
         this.meleeSwingAngleEnd = this.angle + 0.4;
@@ -2775,8 +2816,10 @@ export class Player {
     ctx.save();
     ctx.translate(px, py);
 
-    const progress = 1 - (this.meleeSwingTimer / this.meleeSwingDuration);
+    const duration = Math.max(0.01, this.meleeSwingDuration || 0.16);
+    const progress = Math.max(0, Math.min(1, 1 - (this.meleeSwingTimer / duration)));
     const curAngle = this.meleeSwingAngleStart + (this.meleeSwingAngleEnd - this.meleeSwingAngleStart) * progress;
+    const bladeLen = Math.max(5, this.meleeBladeLength || 50);
 
     switch (weapon.id) {
       case 1: { // 1. 仕紳手杖劍：銀金銳利刺擊弧光
@@ -2784,12 +2827,12 @@ export class Player {
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(curAngle) * this.meleeBladeLength, Math.sin(curAngle) * this.meleeBladeLength);
+        ctx.lineTo(Math.cos(curAngle) * bladeLen, Math.sin(curAngle) * bladeLen);
         ctx.stroke();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(0, 0, this.meleeBladeLength, curAngle - 0.2, curAngle + 0.2);
+        ctx.arc(0, 0, bladeLen, curAngle - 0.2, curAngle + 0.2);
         ctx.stroke();
         break;
       }
@@ -2797,11 +2840,11 @@ export class Player {
         ctx.strokeStyle = '#a37c48';
         ctx.lineWidth = 8;
         ctx.beginPath();
-        ctx.arc(0, 0, this.meleeBladeLength, this.angle - 0.4, this.angle + 0.4);
+        ctx.arc(0, 0, bladeLen, this.angle - 0.4, this.angle + 0.4);
         ctx.stroke();
         ctx.fillStyle = 'rgba(212, 175, 55, 0.4)';
         ctx.beginPath();
-        ctx.arc(0, 0, this.meleeBladeLength, this.angle - 0.5, this.angle + 0.5);
+        ctx.arc(0, 0, bladeLen, this.angle - 0.5, this.angle + 0.5);
         ctx.fill();
         break;
       }
@@ -2820,15 +2863,16 @@ export class Player {
         ctx.strokeStyle = '#00e5ff';
         ctx.lineWidth = 6;
         ctx.beginPath();
-        ctx.arc(0, 0, this.meleeBladeLength, this.angle - 0.8, this.angle + 0.8);
+        ctx.arc(0, 0, bladeLen, this.angle - 0.8, this.angle + 0.8);
         ctx.stroke();
         break;
       }
-      case 11: { // 11. 精鋼指虎：金色拳風衝擊波環
+      case 11: { // 11. 精鋼指虎：金色拳風衝擊波環 (安全半徑保護，杜絕負數崩潰)
+        const ringRadius = Math.max(4, 24 * progress + 4);
         ctx.strokeStyle = '#ff9100';
         ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.arc(Math.cos(this.angle) * 35, Math.sin(this.angle) * 35, 18 * progress + 6, 0, Math.PI * 2);
+        ctx.arc(Math.cos(this.angle) * 35, Math.sin(this.angle) * 35, ringRadius, 0, Math.PI * 2);
         ctx.stroke();
         break;
       }
