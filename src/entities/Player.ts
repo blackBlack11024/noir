@@ -986,11 +986,9 @@ export class Player {
       boss.takeDamage(damage, particles);
     }
 
-    // 破土在身旁生成 2 塊戰術沙袋掩體 / 捕獸夾
-    for (let ti = 0; ti < 2; ti++) {
-      const ta = (Math.PI * ti) + this.angle;
-      projectiles.spawnTrap(this.x + Math.cos(ta) * 45, this.y + Math.sin(ta) * 45, weapon.damage * 1.5);
-    }
+    // 破土在身旁揚起巨大泥土衝擊波
+    particles.spawnSmoke(this.x, this.y, 18, '#8b5a2b');
+    particles.spawnElectricSparks(this.x, this.y, 12);
   }
 
   private fireLightAttack(weapon: WeaponInfo, enemies: Enemy[], boss: Boss | null, projectiles: ProjectileManager, particles: ParticleSystem) {
@@ -1579,44 +1577,38 @@ export class Player {
       }
 
       if (weapon.id === 14) {
-        // 14. 荊棘毒藤鋼鞭重攻擊：千頭毒藤·噬血萬鞭穿刺 (伸出 8 條墨綠鋼鞭穿刺前方 + 噬血汲取 HP)
+        // 14. 荊棘毒藤鋼鞭重攻擊：千頭毒藤·噬血萬鞭穿刺 (伸出 8 條墨綠鋼鞭穿刺前方 + 噬血汲取 HP，純近戰無弩矢)
         AudioManager.playSlash();
         AudioManager.playParry();
         InputManager.haptic([40, 80]);
 
         this.meleeSwingTimer = 0.35;
-        this.meleeBladeLength = 180;
+        this.meleeBladeLength = 185;
         this.meleeSwingAngleStart = this.angle - 1.2;
         this.meleeSwingAngleEnd = this.angle + 1.2;
 
         let siphonedHp = 0;
 
-        // 向前扇形噴射 8 條高速荊棘鋼鞭毒刺彈幕 (貫穿所有敵怪)
-        for (let i = -3.5; i <= 3.5; i += 1.0) {
-          const spread = i * 0.15;
-          projectiles.spawnBullet(this.x, this.y, this.angle + spread, 680, damage * 0.45, true, '#2e8b57', true, 4, 'bleed', 'crossbow_bolt');
-        }
-
-        // 近中身 180px 範圍千藤橫掃與噬血汲取
+        // 前方 185px 扇形千藤長鞭直接打擊與噬血汲取
         for (const e of enemies) {
           if (e.isDead) continue;
           const edist = Math.hypot(e.x - this.x, e.y - this.y);
-          if (edist < 185) {
+          if (edist < 190) {
             const eAngle = Math.atan2(e.y - this.y, e.x - this.x);
             let diff = Math.abs(eAngle - this.angle);
             if (diff > Math.PI) diff = Math.PI * 2 - diff;
             if (diff < 1.4) {
               siphonedHp += (e.isElite ? 8 : 4);
-              e.takeDamage(damage * 1.5, particles, 'bleed', true, this.angle);
-              particles.spawnBlood(e.x, e.y, 8);
+              e.takeDamage(damage * 1.8, particles, 'bleed', true, this.angle);
+              particles.spawnBlood(e.x, e.y, 10);
             }
           }
         }
 
-        if (boss && !boss.isDead && Math.hypot(boss.x - this.x, boss.y - this.y) < 195) {
+        if (boss && !boss.isDead && Math.hypot(boss.x - this.x, boss.y - this.y) < 200) {
           siphonedHp += 12;
-          boss.takeDamage(damage * 1.5, particles);
-          particles.spawnBlood(boss.x, boss.y, 16);
+          boss.takeDamage(damage * 1.8, particles);
+          particles.spawnBlood(boss.x, boss.y, 18);
         }
 
         if (siphonedHp > 0) {
@@ -2840,18 +2832,23 @@ export class Player {
         ctx.stroke();
         break;
       }
-      case 14: { // 14. 荊棘鋼鞭：綠色蛇形長鞭波動
-        ctx.strokeStyle = '#00e676';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        for (let i = 0.2; i <= 1.0; i += 0.2) {
-          const wave = Math.sin(i * 8 + progress * 6) * 15;
-          const wx = Math.cos(this.angle) * (this.meleeBladeLength * i) - Math.sin(this.angle) * wave;
-          const wy = Math.sin(this.angle) * (this.meleeBladeLength * i) + Math.cos(this.angle) * wave;
-          ctx.lineTo(wx, wy);
+      case 14: { // 14. 荊棘鋼鞭：多重毒藤/長鞭狂亂波動 (Multi-Tendril Hydra Whips)
+        const tendrilCount = this.meleeBladeLength >= 150 ? 8 : 1;
+        for (let ti = 0; ti < tendrilCount; ti++) {
+          const tAngleOffset = tendrilCount > 1 ? ((ti / (tendrilCount - 1)) - 0.5) * 1.6 : 0;
+          const whipAngle = this.angle + tAngleOffset;
+          ctx.strokeStyle = ti % 2 === 0 ? '#00e676' : '#2e7d32';
+          ctx.lineWidth = tendrilCount > 1 ? 2.5 : 3.5;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          for (let i = 0.15; i <= 1.0; i += 0.15) {
+            const wave = Math.sin(i * 9 + progress * 8 + ti) * (tendrilCount > 1 ? 18 : 15);
+            const wx = Math.cos(whipAngle) * (this.meleeBladeLength * i) - Math.sin(whipAngle) * wave;
+            const wy = Math.sin(whipAngle) * (this.meleeBladeLength * i) + Math.cos(whipAngle) * wave;
+            ctx.lineTo(wx, wy);
+          }
+          ctx.stroke();
         }
-        ctx.stroke();
         break;
       }
       case 15: { // 15. 屠夫砍刀：血霧沉重劈砸弧

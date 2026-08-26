@@ -813,20 +813,22 @@ export class CombatScene {
               this.camera.shake(1.8, 0.06);
             }
 
-            // 陷阱/地雷定身並同步向觸發方向發射穿牆重型弩彈
+            // 陷阱/地雷定身 (十字弩專屬機關連環射擊)
             if (p.isTrap) {
               e.staggerTimer = 2.5;
               e.state = 'stagger';
               AudioManager.playShot('revolver');
               this.particles.spawnElectricSparks(p.x, p.y, 16);
 
-              // 地雷引爆時同步朝觸發方向連射 3 發穿牆貫穿弩矢 (Wall-Piercing Crossbow Bolts)
-              const trigAngle = Math.atan2(e.y - p.y, e.x - p.x);
-              for (let bi = -1; bi <= 1; bi++) {
-                const boltAngle = trigAngle + bi * 0.22;
-                this.projectiles.spawnBullet(p.x, p.y, boltAngle, 800, p.damage * 1.5, true, '#d4af37', true, 999, 'bleed', 'crossbow_bolt');
+              // 僅當手持重型戰術十字弩 (Weapon 10) 時，地雷引爆才連鎖向目標噴射 3 連發穿牆貫穿弩矢
+              if (this.player.getCurrentWeapon().id === 10) {
+                const trigAngle = Math.atan2(e.y - p.y, e.x - p.x);
+                for (let bi = -1; bi <= 1; bi++) {
+                  const boltAngle = trigAngle + bi * 0.22;
+                  this.projectiles.spawnBullet(p.x, p.y, boltAngle, 800, p.damage * 1.5, true, '#d4af37', true, 999, 'bleed', 'crossbow_bolt');
+                }
+                this.particles.spawnMuzzleFlash(p.x, p.y, trigAngle, '#ffd700');
               }
-              this.particles.spawnMuzzleFlash(p.x, p.y, trigAngle, '#ffd700');
             }
 
             // 炸藥桶/爆裂彈引發範圍大爆炸 (AOE Explosion)
@@ -909,12 +911,14 @@ export class CombatScene {
             if (p.isTrap) {
               AudioManager.playShot('revolver');
               this.particles.spawnElectricSparks(p.x, p.y, 16);
-              const trigAngle = Math.atan2(this.boss.y - p.y, this.boss.x - p.x);
-              for (let bi = -1; bi <= 1; bi++) {
-                const boltAngle = trigAngle + bi * 0.22;
-                this.projectiles.spawnBullet(p.x, p.y, boltAngle, 800, p.damage * 1.5, true, '#d4af37', true, 999, 'bleed', 'crossbow_bolt');
+              if (this.player.getCurrentWeapon().id === 10) {
+                const trigAngle = Math.atan2(this.boss.y - p.y, this.boss.x - p.x);
+                for (let bi = -1; bi <= 1; bi++) {
+                  const boltAngle = trigAngle + bi * 0.22;
+                  this.projectiles.spawnBullet(p.x, p.y, boltAngle, 800, p.damage * 1.5, true, '#d4af37', true, 999, 'bleed', 'crossbow_bolt');
+                }
+                this.particles.spawnMuzzleFlash(p.x, p.y, trigAngle, '#ffd700');
               }
-              this.particles.spawnMuzzleFlash(p.x, p.y, trigAngle, '#ffd700');
             }
 
             // 炸藥桶命中 Boss 觸發大範圍爆破
